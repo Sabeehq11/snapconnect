@@ -1,0 +1,105 @@
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useAuth } from '../context/AuthContext';
+import colors from '../utils/colors';
+
+// Import screens (we'll create these next)
+import LoginScreen from '../screens/LoginScreen';
+import SignupScreen from '../screens/SignupScreen';
+import CameraScreen from '../screens/CameraScreen';
+import ChatListScreen from '../screens/ChatListScreen';
+import ChatScreen from '../screens/ChatScreen';
+import StoriesScreen from '../screens/StoriesScreen';
+import ProfileScreen from '../screens/ProfileScreen';
+import LoadingScreen from '../screens/LoadingScreen';
+
+const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
+
+// Auth Stack for login/signup
+const AuthStack = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="Signup" component={SignupScreen} />
+    </Stack.Navigator>
+  );
+};
+
+// Chat Stack Navigator
+const ChatStack = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ChatList" component={ChatListScreen} />
+      <Stack.Screen name="ChatRoom" component={ChatScreen} />
+    </Stack.Navigator>
+  );
+};
+
+// Main Tab Navigator for authenticated users
+const MainTabNavigator = () => {
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: colors.black,
+          borderTopWidth: 2,
+          borderTopColor: colors.purple,
+          paddingTop: 5,
+          paddingBottom: 5,
+        },
+        tabBarActiveTintColor: colors.pink,
+        tabBarInactiveTintColor: colors.lightGray,
+      }}
+    >
+      <Tab.Screen 
+        name="Chat" 
+        component={ChatStack}
+        options={{
+          tabBarLabel: 'Chat',
+        }}
+      />
+      <Tab.Screen 
+        name="Camera" 
+        component={CameraScreen}
+        options={{
+          tabBarLabel: 'Camera',
+        }}
+      />
+      <Tab.Screen 
+        name="Stories" 
+        component={StoriesScreen}
+        options={{
+          tabBarLabel: 'Stories',
+        }}
+      />
+      <Tab.Screen 
+        name="Profile" 
+        component={ProfileScreen}
+        options={{
+          tabBarLabel: 'Profile',
+        }}
+      />
+    </Tab.Navigator>
+  );
+};
+
+// Main App Navigator
+const AppNavigator = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  return (
+    <NavigationContainer>
+      {user ? <MainTabNavigator /> : <AuthStack />}
+    </NavigationContainer>
+  );
+};
+
+export default AppNavigator; 
