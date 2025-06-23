@@ -121,3 +121,7 @@ Thumbs.db
 !src/config/
 !package.json
 !package-lock.json
+
+# Git History Cleanup Tools (temporary)
+bfg.jar
+clean-history.ps1
