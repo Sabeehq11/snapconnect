@@ -3,8 +3,12 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { View, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
-import colors from '../utils/colors';
+import { useChats } from '../hooks/useChat';
+import { colors, theme } from '../utils/colors';
+import { ChatTabIcon, CameraTabIcon, StoriesTabIcon, ProfileTabIcon } from '../components/AnimatedTabIcon';
 
 // Import screens (we'll create these next)
 import LoginScreen from '../screens/LoginScreen';
@@ -20,6 +24,42 @@ import LoadingScreen from '../screens/LoadingScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+// Custom Tab Bar Icon with gradient background for active state
+const TabIcon = ({ name, iconType = 'Ionicons', focused, color, size }) => {
+  const IconComponent = iconType === 'MaterialIcons' ? MaterialIcons : Ionicons;
+  
+  if (focused) {
+    return (
+      <View style={{
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 2,
+      }}>
+        <LinearGradient
+          colors={colors.gradients.primary}
+          style={{
+            width: '100%',
+            height: '100%',
+            borderRadius: 20,
+            justifyContent: 'center',
+            alignItems: 'center',
+            ...theme.shadows.sm,
+          }}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <IconComponent name={name} size={size} color={colors.white} />
+        </LinearGradient>
+      </View>
+    );
+  }
+  
+  return <IconComponent name={name} size={size} color={color} />;
+};
 
 // Auth Stack for login/signup
 const AuthStack = () => {
@@ -54,28 +94,73 @@ const ProfileStack = () => {
 
 // Main Tab Navigator for authenticated users
 const MainTabNavigator = () => {
+  const { totalUnreadCount } = useChats();
+
   return (
     <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.black,
-          borderTopWidth: 2,
-          borderTopColor: colors.purple,
-          paddingTop: 5,
-          paddingBottom: 5,
-        },
-        tabBarActiveTintColor: colors.pink,
-        tabBarInactiveTintColor: colors.lightGray,
+      screenOptions={({ route }) => {
+        // Check if we're in a chat room to completely hide the tab bar
+        const routeName = route?.state?.routes[route.state.index]?.name;
+        const nestedState = route?.state?.routes[route.state.index]?.state;
+        const nestedRouteName = nestedState?.routes[nestedState.index]?.name;
+        
+        // Completely hide tab bar in ChatRoom
+        const shouldHideTabBar = nestedRouteName === 'ChatRoom';
+        
+        return {
+          headerShown: false,
+          tabBarStyle: shouldHideTabBar ? { 
+            display: 'none',
+            position: 'absolute',
+            bottom: -100, // Move completely off screen
+            height: 0,
+          } : {
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: 'rgba(22, 27, 34, 0.95)',
+            borderTopWidth: 1,
+            borderTopColor: 'rgba(0, 168, 232, 0.2)',
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            paddingTop: 16,
+            paddingBottom: Platform.OS === 'ios' ? 36 : 16,
+            paddingHorizontal: 12,
+            height: Platform.OS === 'ios' ? 95 : 75,
+            elevation: 20,
+            shadowColor: colors.black,
+            shadowOffset: { width: 0, height: -8 },
+            shadowOpacity: 0.4,
+            shadowRadius: 12,
+            backdropFilter: 'blur(20px)',
+          },
+          tabBarActiveTintColor: colors.white,
+          tabBarInactiveTintColor: colors.textMuted,
+          tabBarLabelStyle: {
+            fontSize: 11,
+            fontWeight: '600',
+            marginTop: 4,
+          },
+          tabBarIconStyle: {
+            marginBottom: -4,
+          },
+        };
       }}
     >
       <Tab.Screen 
         name="Chat" 
         component={ChatStack}
         options={{
-          tabBarLabel: 'Chat',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles" size={size} color={color} />
+          tabBarLabel: 'Chats',
+          tabBarIcon: ({ focused, color, size }) => (
+            <ChatTabIcon 
+              focused={focused} 
+              color={color} 
+              size={focused ? 20 : size}
+              hasNotifications={totalUnreadCount > 0}
+              notificationCount={totalUnreadCount}
+            />
           ),
         }}
       />
@@ -84,8 +169,12 @@ const MainTabNavigator = () => {
         component={CameraScreen}
         options={{
           tabBarLabel: 'Camera',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="camera" size={size} color={color} />
+          tabBarIcon: ({ focused, color, size }) => (
+            <CameraTabIcon 
+              focused={focused} 
+              color={color} 
+              size={focused ? 20 : size} 
+            />
           ),
         }}
       />
@@ -94,8 +183,12 @@ const MainTabNavigator = () => {
         component={StoriesScreen}
         options={{
           tabBarLabel: 'Stories',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="auto-stories" size={size} color={color} />
+          tabBarIcon: ({ focused, color, size }) => (
+            <StoriesTabIcon
+              focused={focused} 
+              color={color} 
+              size={focused ? 20 : size} 
+            />
           ),
         }}
       />
@@ -104,8 +197,12 @@ const MainTabNavigator = () => {
         component={ProfileStack}
         options={{
           tabBarLabel: 'Profile',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
+          tabBarIcon: ({ focused, color, size }) => (
+            <ProfileTabIcon
+              focused={focused} 
+              color={color} 
+              size={focused ? 20 : size} 
+            />
           ),
         }}
       />

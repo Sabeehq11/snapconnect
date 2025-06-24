@@ -13,23 +13,31 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
+  StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../hooks/useChat';
+import { useChats } from '../hooks/useChat';
 import { colors, theme } from '../utils/colors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const ChatScreen = ({ route, navigation }) => {
   const { chatId, chatName } = route.params;
   const { user } = useAuth();
   const { messages, loading, sendMessage } = useChat(chatId);
+  const { markChatAsRead } = useChats();
   const [newMessage, setNewMessage] = useState('');
   const [viewingMessage, setViewingMessage] = useState(null);
   const [viewTimer, setViewTimer] = useState(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const flatListRef = useRef(null);
+  const textInputRef = useRef(null);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     navigation.setOptions({
@@ -44,7 +52,38 @@ const ChatScreen = ({ route, navigation }) => {
         fontWeight: theme.typography.fontWeights.semibold,
       },
     });
-  }, [navigation, chatName]);
+
+    // Mark chat as read when entering
+    if (chatId) {
+      markChatAsRead(chatId);
+    }
+  }, [navigation, chatName, chatId, markChatAsRead]);
+
+  // Keyboard event listeners
+  useEffect(() => {
+    const keyboardWillShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (event) => {
+        setKeyboardHeight(event.endCoordinates.height);
+        // Scroll to bottom when keyboard opens
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    );
+
+    const keyboardWillHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardWillShowListener?.remove();
+      keyboardWillHideListener?.remove();
+    };
+  }, []);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -112,6 +151,11 @@ const ChatScreen = ({ route, navigation }) => {
 
       await sendMessage(newMessage.trim());
       setNewMessage('');
+      
+      // Scroll to bottom after sending
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     } catch (error) {
       console.error('Error sending message:', error);
       Alert.alert('Error', 'Failed to send message. Please try again.');
@@ -208,6 +252,7 @@ const ChatScreen = ({ route, navigation }) => {
         ]}
         onPress={() => handleViewMessage(item)}
         disabled={isOwnMessage}
+        activeOpacity={0.8}
       >
         <LinearGradient
           colors={isOwnMessage ? colors.gradients.primary : colors.gradients.card}
@@ -253,69 +298,99 @@ const ChatScreen = ({ route, navigation }) => {
     );
   };
 
-  const filteredMessages = messages.filter(msg => 
-    msg.sender_id === user.id || !msg.is_disappeared
-  );
+  // Calculate bottom padding based on keyboard and safe area
+  const bottomPadding = Math.max(keyboardHeight, insets.bottom);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
-        style={styles.keyboardContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
+    <>
+      <StatusBar barStyle="light-content" backgroundColor={colors.dark} />
+      <SafeAreaView style={styles.container}>
         <LinearGradient
           colors={colors.gradients.dark}
           style={styles.backgroundGradient}
         >
-          <FlatList
-            ref={flatListRef}
-            data={filteredMessages}
-            renderItem={renderMessage}
-            keyExtractor={(item) => item.id}
-            style={styles.messagesList}
-            contentContainerStyle={styles.messagesContainer}
-            showsVerticalScrollIndicator={false}
-          />
-
-          <View style={styles.inputContainer}>
-            <LinearGradient
-              colors={colors.gradients.card}
-              style={styles.inputWrapper}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <TextInput
-                style={styles.textInput}
-                value={newMessage}
-                onChangeText={setNewMessage}
-                placeholder="Type a message..."
-                placeholderTextColor={colors.textMuted}
-                multiline
-                maxLength={500}
-              />
-              <TouchableOpacity
-                style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}
-                onPress={handleSendMessage}
-                disabled={!newMessage.trim()}
+          <KeyboardAvoidingView 
+            style={styles.keyboardContainer}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          >
+            {/* Messages List */}
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              renderItem={renderMessage}
+              keyExtractor={(item) => item.id}
+              style={styles.messagesList}
+              contentContainerStyle={[
+                styles.messagesContainer,
+                { 
+                  paddingBottom: 80 + bottomPadding, // Extra padding for input area
+                }
+              ]}
+              showsVerticalScrollIndicator={false}
+              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+              onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+            />
+            
+            {/* Input Container - Fixed at bottom */}
+            <View style={[
+              styles.inputContainer,
+              {
+                paddingBottom: bottomPadding,
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+              }
+            ]}>
+              <LinearGradient
+                colors={colors.gradients.card}
+                style={styles.inputWrapper}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
               >
-                <LinearGradient
-                  colors={newMessage.trim() ? colors.gradients.primary : [colors.border, colors.border]}
-                  style={styles.sendButtonGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
+                <TextInput
+                  ref={textInputRef}
+                  style={styles.textInput}
+                  value={newMessage}
+                  onChangeText={setNewMessage}
+                  placeholder="Type a message..."
+                  placeholderTextColor={colors.textMuted}
+                  multiline
+                  returnKeyType="send"
+                  onSubmitEditing={handleSendMessage}
+                  blurOnSubmit={false}
+                  onFocus={() => {
+                    // Scroll to bottom when input is focused
+                    setTimeout(() => {
+                      flatListRef.current?.scrollToEnd({ animated: true });
+                    }, 300);
+                  }}
+                />
+                <TouchableOpacity
+                  style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}
+                  onPress={handleSendMessage}
+                  disabled={!newMessage.trim()}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.sendButtonText}>Send</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </LinearGradient>
-          </View>
+                  <LinearGradient
+                    colors={newMessage.trim() ? colors.gradients.primary : colors.gradients.muted}
+                    style={styles.sendButtonGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Text style={styles.sendButtonText}>➤</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </LinearGradient>
+            </View>
+          </KeyboardAvoidingView>
         </LinearGradient>
 
-        {/* Full screen message viewer */}
+        {/* Message Viewer Modal */}
         <Modal
-          visible={!!viewingMessage}
           transparent={true}
+          visible={!!viewingMessage}
           animationType="fade"
           onRequestClose={closeMessageView}
         >
@@ -348,8 +423,8 @@ const ChatScreen = ({ route, navigation }) => {
             </LinearGradient>
           </Animated.View>
         </Modal>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </>
   );
 };
 
@@ -369,6 +444,7 @@ const styles = StyleSheet.create({
   },
   messagesContainer: {
     padding: theme.spacing.md,
+    flexGrow: 1,
   },
   messageContainer: {
     marginBottom: theme.spacing.md,
@@ -432,14 +508,18 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
-    paddingBottom: theme.spacing.lg,
+    paddingTop: theme.spacing.sm,
+    backgroundColor: colors.dark,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     padding: theme.spacing.sm,
     borderRadius: theme.borderRadius.xl,
+    minHeight: 56,
+    marginBottom: theme.spacing.sm,
   },
   textInput: {
     flex: 1,
@@ -454,6 +534,7 @@ const styles = StyleSheet.create({
     minHeight: 40,
     borderWidth: 1,
     borderColor: colors.border,
+    textAlignVertical: 'top',
   },
   sendButton: {
     borderRadius: theme.borderRadius.full,

@@ -7,15 +7,20 @@ import {
   StyleSheet,
   SafeAreaView,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useChats } from '../hooks/useChat';
 import { useFriends } from '../hooks/useFriends';
 import CreateChatModal from '../components/CreateChatModal';
 import { supabase } from '../../lib/supabase';
 import { colors, theme } from '../utils/colors';
+import EmptyState from '../components/EmptyState';
+import GlassView from '../components/GlassView';
+import { AnimatedHeroGradient } from '../components/AnimatedGradient';
 
 const ChatListScreen = ({ navigation }) => {
   const { user } = useAuth();
@@ -23,6 +28,7 @@ const ChatListScreen = ({ navigation }) => {
   const { friends, refetchFriends } = useFriends();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeTab, setActiveTab] = useState('chats');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Refresh friends when screen comes into focus
   useFocusEffect(
@@ -103,11 +109,17 @@ const ChatListScreen = ({ navigation }) => {
     const chatName = getChatName(item);
     const lastMessage = getLastMessage(item);
     const timestamp = formatTimestamp(item.last_message_at || item.created_at);
+    const hasUnread = item.unread_count > 0;
+    
+    const handleChatPress = () => {
+      navigation.navigate('ChatRoom', { chatId: item.id, chatName });
+    };
     
     return (
       <TouchableOpacity 
         style={styles.chatItem}
-        onPress={() => navigation.navigate('ChatRoom', { chatId: item.id, chatName })}
+        onPress={handleChatPress}
+        activeOpacity={0.8}
       >
         <LinearGradient
           colors={colors.gradients.card}
@@ -115,7 +127,7 @@ const ChatListScreen = ({ navigation }) => {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <View style={styles.avatar}>
+          <View style={styles.avatarContainer}>
             <LinearGradient
               colors={colors.gradients.primary}
               style={styles.avatarGradient}
@@ -126,14 +138,22 @@ const ChatListScreen = ({ navigation }) => {
                 {chatName.charAt(0).toUpperCase()}
               </Text>
             </LinearGradient>
+            <View style={[styles.onlineIndicator, { backgroundColor: colors.success }]} />
           </View>
           
           <View style={styles.chatContent}>
             <View style={styles.chatHeader}>
-              <Text style={styles.chatName}>{chatName}</Text>
-              <Text style={styles.timestamp}>{timestamp}</Text>
+              <Text style={styles.chatName} numberOfLines={1}>{chatName}</Text>
+              <View style={styles.headerRight}>
+                <Text style={styles.timestamp}>{timestamp}</Text>
+                {hasUnread && (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadText}>{item.unread_count}</Text>
+                  </View>
+                )}
+              </View>
             </View>
-            <Text style={styles.lastMessage} numberOfLines={1}>
+            <Text style={styles.lastMessage} numberOfLines={2}>
               {lastMessage}
             </Text>
           </View>
@@ -146,6 +166,7 @@ const ChatListScreen = ({ navigation }) => {
     <TouchableOpacity 
       style={styles.chatItem}
       onPress={() => startChatWithFriend(item)}
+      activeOpacity={0.8}
     >
       <LinearGradient
         colors={colors.gradients.card}
@@ -153,7 +174,7 @@ const ChatListScreen = ({ navigation }) => {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <View style={styles.avatar}>
+        <View style={styles.avatarContainer}>
           <LinearGradient
             colors={colors.gradients.secondary}
             style={styles.avatarGradient}
@@ -164,17 +185,20 @@ const ChatListScreen = ({ navigation }) => {
               {(item.display_name || item.username || item.email).charAt(0).toUpperCase()}
             </Text>
           </LinearGradient>
+          <View style={[styles.onlineIndicator, { backgroundColor: colors.success }]} />
         </View>
         
         <View style={styles.chatContent}>
           <View style={styles.chatHeader}>
-            <Text style={styles.chatName}>
+            <Text style={styles.chatName} numberOfLines={1}>
               {item.display_name || item.username || item.email}
             </Text>
-            <Text style={styles.onlineStatus}>●</Text>
+            <View style={styles.startChatIcon}>
+              <Ionicons name="chatbubble-ellipses" size={16} color={colors.accent} />
+            </View>
           </View>
           <Text style={styles.lastMessage} numberOfLines={1}>
-            Tap to start a chat
+            Tap to start chatting • Online
           </Text>
         </View>
       </LinearGradient>
@@ -192,91 +216,144 @@ const ChatListScreen = ({ navigation }) => {
             <Text style={styles.headerTitle}>Messages</Text>
           </View>
           <View style={styles.loadingContainer}>
+            <LinearGradient
+              colors={colors.gradients.primary}
+              style={styles.loadingIcon}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Ionicons name="chatbubbles" size={32} color={colors.white} />
+            </LinearGradient>
             <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={styles.loadingText}>Loading conversations...</Text>
+            <Text style={styles.loadingTitle}>Loading Messages</Text>
+            <Text style={styles.loadingText}>Getting your conversations ready...</Text>
           </View>
         </LinearGradient>
       </SafeAreaView>
     );
   }
 
+  const filteredChats = chats?.filter(chat => {
+    const name = getChatName(chat).toLowerCase();
+    return name.includes(searchQuery.toLowerCase());
+  }) || [];
+
+  const filteredFriends = friends?.filter(friend => {
+    const name = (friend.display_name || friend.username || friend.email).toLowerCase();
+    return name.includes(searchQuery.toLowerCase());
+  }) || [];
+
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient
-        colors={colors.gradients.dark}
-        style={styles.backgroundGradient}
-      >
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>
-            {activeTab === 'chats' ? 'Messages' : 'Friends'}
-          </Text>
-          <TouchableOpacity 
-            style={styles.addButton}
-            onPress={() => setShowCreateModal(true)}
-          >
-            <LinearGradient
-              colors={colors.gradients.primary}
-              style={styles.addButtonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+      <AnimatedHeroGradient style={styles.backgroundGradient}>
+        {/* Header */}
+        <GlassView style={styles.header} intensity="medium" tint="dark">
+          <View style={styles.headerTop}>
+            <Text style={styles.headerTitle}>Messages</Text>
+            <TouchableOpacity 
+              style={styles.newChatButton}
+              onPress={() => setShowCreateModal(true)}
+              activeOpacity={0.8}
             >
-              <Text style={styles.addButtonText}>+</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-
-        {/* Tabs */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'chats' && styles.activeTab]}
-            onPress={() => setActiveTab('chats')}
-          >
-            <Text style={[styles.tabText, activeTab === 'chats' && styles.activeTabText]}>
-              Chats ({chats.length})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'friends' && styles.activeTab]}
-            onPress={() => setActiveTab('friends')}
-          >
-            <Text style={[styles.tabText, activeTab === 'friends' && styles.activeTabText]}>
-              Friends ({friends.length})
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Content */}
-        {activeTab === 'chats' ? (
-          chats.length === 0 ? (
-            <View style={styles.emptyContainer}>
               <LinearGradient
-                colors={colors.gradients.card}
-                style={styles.emptyCard}
+                colors={colors.gradients.accent}
+                style={styles.newChatGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               >
-                <Text style={styles.emptyTitle}>No conversations yet</Text>
-                <Text style={styles.emptyText}>
-                  Start connecting with friends and colleagues
-                </Text>
-                <TouchableOpacity
-                  style={styles.emptyButton}
-                  onPress={() => setShowCreateModal(true)}
-                >
-                  <LinearGradient
-                    colors={colors.gradients.accent}
-                    style={styles.emptyButtonGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                  >
-                    <Text style={styles.emptyButtonText}>Start Chatting</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                <Ionicons name="add" size={24} color={colors.white} />
               </LinearGradient>
-            </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Search Bar */}
+          <View style={styles.searchContainer}>
+            <LinearGradient
+              colors={colors.gradients.card}
+              style={styles.searchGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Ionicons name="search" size={20} color={colors.textMuted} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search messages..."
+                placeholderTextColor={colors.textMuted}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+            </LinearGradient>
+          </View>
+
+          {/* Tab Navigation */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'chats' && styles.activeTab]}
+              onPress={() => setActiveTab('chats')}
+              activeOpacity={0.8}
+            >
+              {activeTab === 'chats' ? (
+                <LinearGradient
+                  colors={colors.gradients.primary}
+                  style={styles.activeTabGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Ionicons name="chatbubbles" size={18} color={colors.white} />
+                  <Text style={styles.activeTabText}>
+                    Chats {filteredChats.length > 0 && `(${filteredChats.length})`}
+                  </Text>
+                </LinearGradient>
+              ) : (
+                <View style={styles.inactiveTabContent}>
+                  <Ionicons name="chatbubbles-outline" size={18} color={colors.textMuted} />
+                  <Text style={styles.inactiveTabText}>
+                    Chats {filteredChats.length > 0 && `(${filteredChats.length})`}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'friends' && styles.activeTab]}
+              onPress={() => setActiveTab('friends')}
+              activeOpacity={0.8}
+            >
+              {activeTab === 'friends' ? (
+                <LinearGradient
+                  colors={colors.gradients.secondary}
+                  style={styles.activeTabGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Ionicons name="people" size={18} color={colors.white} />
+                  <Text style={styles.activeTabText}>
+                    Friends {filteredFriends.length > 0 && `(${filteredFriends.length})`}
+                  </Text>
+                </LinearGradient>
+              ) : (
+                <View style={styles.inactiveTabContent}>
+                  <Ionicons name="people-outline" size={18} color={colors.textMuted} />
+                  <Text style={styles.inactiveTabText}>
+                    Friends {filteredFriends.length > 0 && `(${filteredFriends.length})`}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </GlassView>
+
+        {/* Content */}
+        {activeTab === 'chats' ? (
+          filteredChats.length === 0 ? (
+            <EmptyState
+              type="noChats"
+              onActionPress={() => setShowCreateModal(true)}
+              style={styles.emptyStateContainer}
+            />
           ) : (
             <FlatList
-              data={chats}
+              data={filteredChats}
               renderItem={renderChatItem}
               keyExtractor={(item) => item.id}
               style={styles.chatList}
@@ -285,23 +362,15 @@ const ChatListScreen = ({ navigation }) => {
             />
           )
         ) : (
-          friends.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <LinearGradient
-                colors={colors.gradients.card}
-                style={styles.emptyCard}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <Text style={styles.emptyTitle}>No friends yet</Text>
-                <Text style={styles.emptyText}>
-                  Add friends to start chatting with them
-                </Text>
-              </LinearGradient>
-            </View>
+          filteredFriends.length === 0 ? (
+            <EmptyState
+              type="noFriends"
+              onActionPress={() => setShowCreateModal(true)}
+              style={styles.emptyStateContainer}
+            />
           ) : (
             <FlatList
-              data={friends}
+              data={filteredFriends}
               renderItem={renderFriendItem}
               keyExtractor={(item) => item.id}
               style={styles.chatList}
@@ -321,7 +390,7 @@ const ChatListScreen = ({ navigation }) => {
             navigation.navigate('ChatRoom', { chatId: chat.id, chatName });
           }}
         />
-      </LinearGradient>
+      </AnimatedHeroGradient>
     </SafeAreaView>
   );
 };
@@ -347,20 +416,34 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeights.bold,
     color: colors.textPrimary,
   },
-  addButton: {
+  newChatButton: {
     borderRadius: theme.borderRadius.full,
     ...theme.shadows.glow,
   },
-  addButtonGradient: {
+  newChatGradient: {
     width: 44,
     height: 44,
     borderRadius: theme.borderRadius.full,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  addButtonText: {
-    fontSize: 24,
-    fontWeight: theme.typography.fontWeights.bold,
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: theme.spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: theme.borderRadius.lg,
+  },
+  searchGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: theme.spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: theme.borderRadius.lg,
+  },
+  searchInput: {
+    flex: 1,
+    padding: theme.spacing.md,
     color: colors.textPrimary,
   },
   tabContainer: {
@@ -381,18 +464,32 @@ const styles = StyleSheet.create({
   activeTab: {
     backgroundColor: colors.primary,
   },
-  tabText: {
+  inactiveTabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inactiveTabText: {
     color: colors.textMuted,
     fontSize: theme.typography.fontSizes.sm,
     fontWeight: theme.typography.fontWeights.medium,
+  },
+  activeTabGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   activeTabText: {
     color: colors.textPrimary,
     fontWeight: theme.typography.fontWeights.bold,
   },
-  onlineStatus: {
-    color: colors.success,
-    fontSize: 12,
+  onlineIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    position: 'absolute',
+    top: 6,
+    right: 6,
   },
   chatList: {
     flex: 1,
@@ -410,7 +507,7 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     ...theme.shadows.sm,
   },
-  avatar: {
+  avatarContainer: {
     marginRight: theme.spacing.md,
   },
   avatarGradient: {
@@ -441,23 +538,51 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     flex: 1,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   timestamp: {
     fontSize: theme.typography.fontSizes.xs,
     color: colors.textMuted,
     marginLeft: theme.spacing.sm,
   },
-  lastMessage: {
-    fontSize: theme.typography.fontSizes.sm,
-    color: colors.textSecondary,
+  unreadBadge: {
+    backgroundColor: colors.success,
+    borderRadius: 12,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    marginLeft: theme.spacing.sm,
+  },
+  unreadText: {
+    fontSize: theme.typography.fontSizes.xs,
+    fontWeight: theme.typography.fontWeights.semibold,
+    color: colors.textPrimary,
+  },
+  startChatIcon: {
+    marginLeft: theme.spacing.sm,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  loadingIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  loadingTitle: {
+    color: colors.textPrimary,
+    fontSize: theme.typography.fontSizes.xl,
+    fontWeight: theme.typography.fontWeights.bold,
+    marginBottom: theme.spacing.sm,
+  },
   loadingText: {
     color: colors.textSecondary,
-    marginTop: theme.spacing.md,
     fontSize: theme.typography.fontSizes.md,
   },
   emptyContainer: {
@@ -497,6 +622,10 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: theme.typography.fontSizes.md,
     fontWeight: theme.typography.fontWeights.semibold,
+  },
+  emptyStateContainer: {
+    flex: 1,
+    paddingTop: theme.spacing.xl,
   },
 });
 

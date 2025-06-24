@@ -8,6 +8,8 @@ import {
   Alert,
   Dimensions,
   Animated,
+  Modal,
+  ScrollView,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
@@ -23,16 +25,30 @@ const CameraScreen = ({ navigation }) => {
   const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
   const [currentFilter, setCurrentFilter] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
+  const [showQuickActions, setShowQuickActions] = useState(false);
+  const [capturedPhoto, setCapturedPhoto] = useState(null);
   const cameraRef = useRef(null);
   const captureAnimation = useRef(new Animated.Value(1)).current;
 
   // AR Filter effects (simulated with overlay styles)
   const filters = [
     { name: 'None', style: {}, icon: 'camera' },
+    { name: 'Study Mode', style: { backgroundColor: '#4A90E2', opacity: 0.15 }, icon: 'library' },
+    { name: 'Campus Life', style: { backgroundColor: '#7ED321', opacity: 0.15 }, icon: 'school' },
+    { name: 'Party Time', style: { backgroundColor: '#F5A623', opacity: 0.2 }, icon: 'celebration' },
     { name: 'Vintage', style: { backgroundColor: '#8B4513', opacity: 0.2 }, icon: 'color-palette' },
     { name: 'Cool', style: { backgroundColor: colors.accent, opacity: 0.15 }, icon: 'snow' },
     { name: 'Warm', style: { backgroundColor: colors.warning, opacity: 0.15 }, icon: 'sunny' },
     { name: 'Dreamy', style: { backgroundColor: colors.secondary, opacity: 0.1 }, icon: 'sparkles' },
+  ];
+
+  // College-specific quick actions
+  const quickActions = [
+    { label: '📚 Study Session', message: 'Cramming for finals! 📖✏️' },
+    { label: '🎓 Campus Event', message: 'Live from campus! 🏫🎉' },
+    { label: '☕ Coffee Break', message: 'Fueling up with caffeine! ☕📚' },
+    { label: '🏀 Game Day', message: 'Go team! 🏆🎊' },
+    { label: '🍕 Food Break', message: 'Refueling between classes! 🍕😋' },
   ];
 
   useEffect(() => {
@@ -123,25 +139,38 @@ const CameraScreen = ({ navigation }) => {
         if (mediaPermission?.granted) {
           await MediaLibrary.saveToLibraryAsync(photo.uri);
           
-          // Show success feedback
-          Alert.alert(
-            '📸 Snap Captured!', 
-            'Your snap has been saved! Ready to share?',
-            [
-              { text: 'Take Another', style: 'cancel' },
-              { 
-                text: 'Share in Chat', 
-                onPress: () => navigation.navigate('Chat'),
-                style: 'default'
-              }
-            ]
-          );
+          // Show quick actions for college context
+          setCapturedPhoto(photo);
+          setShowQuickActions(true);
         }
       } catch (error) {
         console.error('Error taking picture:', error);
         Alert.alert('😅 Oops!', 'Failed to capture snap. Try again!');
       }
     }
+  };
+
+  const handleQuickAction = async (action) => {
+    setShowQuickActions(false);
+    
+    // Navigate to chat with pre-filled message
+    Alert.alert(
+      '📸 Snap Ready!', 
+      `"${action.message}" - Ready to share this moment?`,
+      [
+        { text: 'Edit Caption', style: 'default' },
+        { 
+          text: 'Share in Chat', 
+          onPress: () => navigation.navigate('Chat'),
+          style: 'default'
+        }
+      ]
+    );
+  };
+
+  const closeQuickActions = () => {
+    setShowQuickActions(false);
+    setCapturedPhoto(null);
   };
 
   const startRecording = async () => {
@@ -289,7 +318,7 @@ const CameraScreen = ({ navigation }) => {
                 </TouchableOpacity>
               </Animated.View>
               
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.iconButton}
                 onPress={() => navigation.navigate('Chat')}
               >
@@ -321,6 +350,70 @@ const CameraScreen = ({ navigation }) => {
           </LinearGradient>
         </View>
       </CameraView>
+
+      {/* Quick Actions Modal */}
+      <Modal
+        visible={showQuickActions}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={closeQuickActions}
+      >
+        <View style={styles.quickActionsOverlay}>
+          <LinearGradient
+            colors={colors.gradients.dark}
+            style={styles.quickActionsContainer}
+          >
+            <View style={styles.quickActionsHeader}>
+              <Text style={styles.quickActionsTitle}>Share Your Campus Moment! 🎓</Text>
+              <TouchableOpacity onPress={closeQuickActions}>
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.quickActionsSubtitle}>
+              Choose a quick caption for your snap:
+            </Text>
+            
+            <ScrollView style={styles.quickActionsList}>
+              {quickActions.map((action, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.quickActionItem}
+                  onPress={() => handleQuickAction(action)}
+                >
+                  <LinearGradient
+                    colors={colors.gradients.card}
+                    style={styles.quickActionGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Text style={styles.quickActionText}>{action.label}</Text>
+                    <Text style={styles.quickActionMessage}>"{action.message}"</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ))}
+              
+              <TouchableOpacity
+                style={styles.quickActionItem}
+                onPress={() => {
+                  setShowQuickActions(false);
+                  navigation.navigate('Chat');
+                }}
+              >
+                <LinearGradient
+                  colors={colors.gradients.primary}
+                  style={styles.quickActionGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={styles.quickActionText}>✏️ Custom Caption</Text>
+                  <Text style={styles.quickActionMessage}>Write your own message</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </ScrollView>
+          </LinearGradient>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -530,6 +623,59 @@ const styles = StyleSheet.create({
   filterOverlay: {
     ...StyleSheet.absoluteFillObject,
     pointerEvents: 'none',
+  },
+
+  // Quick Actions Modal
+  quickActionsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickActionsContainer: {
+    width: '80%',
+    maxWidth: 350,
+    padding: theme.spacing.xl,
+    borderRadius: theme.borderRadius.xl,
+    ...theme.shadows.lg,
+  },
+  quickActionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.lg,
+  },
+  quickActionsTitle: {
+    fontSize: theme.typography.fontSizes.xl,
+    fontWeight: theme.typography.fontWeights.bold,
+    color: colors.textPrimary,
+  },
+  quickActionsSubtitle: {
+    fontSize: theme.typography.fontSizes.md,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: theme.spacing.xl,
+  },
+  quickActionsList: {
+    maxHeight: 200,
+  },
+  quickActionItem: {
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.sm,
+  },
+  quickActionGradient: {
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+  },
+  quickActionText: {
+    fontSize: theme.typography.fontSizes.md,
+    fontWeight: theme.typography.fontWeights.medium,
+    color: colors.textPrimary,
+  },
+  quickActionMessage: {
+    fontSize: theme.typography.fontSizes.sm,
+    color: colors.textSecondary,
   },
 });
 

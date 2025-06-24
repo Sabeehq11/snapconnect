@@ -8,8 +8,11 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Animated,
+  Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useFriends } from '../hooks/useFriends';
 import { colors, theme } from '../utils/colors';
 
@@ -31,16 +34,16 @@ const AddFriendModal = ({ visible, onClose }) => {
       
       if (result.success) {
         Alert.alert(
-          'Friend Request Sent!',
+          '🎉 Friend Request Sent!',
           `Friend request sent to ${result.receiver.display_name || result.receiver.username}`,
-          [{ text: 'OK', onPress: () => {
+          [{ text: 'Awesome!', onPress: () => {
             setEmailOrUsername('');
             setMessage('');
             onClose();
           }}]
         );
       } else {
-        Alert.alert('Error', result.error || 'Failed to send friend request');
+        Alert.alert('Oops!', result.error || 'Failed to send friend request');
       }
     } catch (error) {
       console.error('Error sending friend request:', error);
@@ -53,7 +56,7 @@ const AddFriendModal = ({ visible, onClose }) => {
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="fade"
       transparent={true}
       onRequestClose={onClose}
     >
@@ -67,69 +70,150 @@ const AddFriendModal = ({ visible, onClose }) => {
           >
             {/* Header */}
             <View style={styles.header}>
-              <Text style={styles.title}>Add Friend</Text>
+              <View style={styles.headerLeft}>
+                <View style={styles.iconContainer}>
+                  <LinearGradient
+                    colors={colors.gradients.primary}
+                    style={styles.iconGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Ionicons name="person-add" size={24} color={colors.white} />
+                  </LinearGradient>
+                </View>
+                <Text style={styles.title}>Add Friend</Text>
+              </View>
               <TouchableOpacity 
                 style={styles.closeButton}
                 onPress={onClose}
                 disabled={sending}
+                activeOpacity={0.7}
               >
-                <Text style={styles.closeButtonText}>✕</Text>
+                <LinearGradient
+                  colors={colors.gradients.card}
+                  style={styles.closeButtonGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </LinearGradient>
               </TouchableOpacity>
             </View>
 
             {/* Form */}
             <View style={styles.form}>
-              <Text style={styles.label}>Email or Username</Text>
-              <TextInput
-                style={styles.input}
-                value={emailOrUsername}
-                onChangeText={setEmailOrUsername}
-                placeholder="Enter email or username"
-                placeholderTextColor={colors.textMuted}
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!sending}
-              />
+              <View style={styles.inputGroup}>
+                <View style={styles.inputHeader}>
+                  <Ionicons name="at" size={16} color={colors.textSecondary} />
+                  <Text style={styles.label}>Email or Username</Text>
+                </View>
+                <View style={styles.inputContainer}>
+                  <LinearGradient
+                    colors={colors.gradients.card}
+                    style={styles.inputGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <TextInput
+                      style={styles.input}
+                      value={emailOrUsername}
+                      onChangeText={setEmailOrUsername}
+                      placeholder="friend@example.com or @username"
+                      placeholderTextColor={colors.textMuted}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      editable={!sending}
+                    />
+                  </LinearGradient>
+                </View>
+              </View>
 
-              <Text style={styles.label}>Message (Optional)</Text>
-              <TextInput
-                style={[styles.input, styles.messageInput]}
-                value={message}
-                onChangeText={setMessage}
-                placeholder="Add a personal message..."
-                placeholderTextColor={colors.textMuted}
-                multiline
-                numberOfLines={3}
-                maxLength={200}
-                editable={!sending}
-              />
+              <View style={styles.inputGroup}>
+                <View style={styles.inputHeader}>
+                  <Ionicons name="chatbubble-ellipses" size={16} color={colors.textSecondary} />
+                  <Text style={styles.label}>Personal Message</Text>
+                  <Text style={styles.optionalLabel}>(Optional)</Text>
+                </View>
+                <View style={styles.inputContainer}>
+                  <LinearGradient
+                    colors={colors.gradients.card}
+                    style={styles.inputGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <TextInput
+                      style={[styles.input, styles.messageInput]}
+                      value={message}
+                      onChangeText={setMessage}
+                      placeholder="Hey! Let's connect on SnapConnect 📸"
+                      placeholderTextColor={colors.textMuted}
+                      multiline
+                      numberOfLines={3}
+                      maxLength={200}
+                      editable={!sending}
+                      textAlignVertical="top"
+                    />
+                  </LinearGradient>
+                </View>
+                <Text style={styles.charCount}>{message.length}/200</Text>
+              </View>
 
               {/* Send Button */}
               <TouchableOpacity
-                style={[styles.sendButton, (!emailOrUsername.trim() || sending) && styles.sendButtonDisabled]}
+                style={styles.sendButton}
                 onPress={handleSendRequest}
                 disabled={!emailOrUsername.trim() || sending}
+                activeOpacity={0.8}
               >
                 <LinearGradient
-                  colors={(!emailOrUsername.trim() || sending) ? [colors.border, colors.border] : colors.gradients.primary}
+                  colors={(!emailOrUsername.trim() || sending) ? 
+                    [colors.textMuted, colors.textMuted] : 
+                    colors.gradients.accent
+                  }
                   style={styles.sendButtonGradient}
                   start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
+                  end={{ x: 1, y: 0 }}
                 >
                   {sending ? (
-                    <ActivityIndicator color={colors.textPrimary} size="small" />
+                    <View style={styles.sendingContainer}>
+                      <ActivityIndicator color={colors.white} size="small" />
+                      <Text style={styles.sendButtonText}>Sending...</Text>
+                    </View>
                   ) : (
-                    <Text style={styles.sendButtonText}>Send Friend Request</Text>
+                    <View style={styles.sendingContainer}>
+                      <Ionicons name="paper-plane" size={18} color={colors.white} />
+                      <Text style={styles.sendButtonText}>Send Friend Request</Text>
+                    </View>
                   )}
                 </LinearGradient>
               </TouchableOpacity>
             </View>
 
-            {/* Info */}
+            {/* Info Card */}
             <View style={styles.infoContainer}>
-              <Text style={styles.infoText}>
-                💡 You can add friends by their email address or username. They'll receive a notification to accept your request.
-              </Text>
+              <LinearGradient
+                colors={colors.gradients.card}
+                style={styles.infoCard}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <View style={styles.infoIcon}>
+                  <LinearGradient
+                    colors={colors.gradients.secondary}
+                    style={styles.infoIconGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Ionicons name="information" size={16} color={colors.white} />
+                  </LinearGradient>
+                </View>
+                <View style={styles.infoTextContainer}>
+                  <Text style={styles.infoTitle}>How it works</Text>
+                  <Text style={styles.infoText}>
+                    Search by email or username to connect with classmates. They'll get a notification to accept your request!
+                  </Text>
+                </View>
+              </LinearGradient>
             </View>
           </LinearGradient>
         </View>
@@ -161,6 +245,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: theme.spacing.xl,
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: theme.spacing.md,
+  },
+  iconGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   title: {
     fontSize: theme.typography.fontSizes.xl,
     fontWeight: theme.typography.fontWeights.bold,
@@ -174,20 +278,39 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  closeButtonText: {
-    color: colors.textMuted,
-    fontSize: 16,
-    fontWeight: 'bold',
+  closeButtonGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   form: {
     marginBottom: theme.spacing.xl,
+  },
+  inputGroup: {
+    marginBottom: theme.spacing.md,
+  },
+  inputHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
   },
   label: {
     color: colors.textSecondary,
     fontSize: theme.typography.fontSizes.sm,
     fontWeight: theme.typography.fontWeights.medium,
-    marginBottom: theme.spacing.xs,
-    marginTop: theme.spacing.md,
+  },
+  inputContainer: {
+    flex: 1,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+  },
+  inputGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
   },
   input: {
     backgroundColor: colors.surface,
@@ -203,6 +326,15 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.md,
     textAlignVertical: 'top',
   },
+  optionalLabel: {
+    color: colors.textMuted,
+    fontSize: theme.typography.fontSizes.sm,
+  },
+  charCount: {
+    color: colors.textMuted,
+    fontSize: theme.typography.fontSizes.sm,
+    textAlign: 'right',
+  },
   sendButton: {
     marginTop: theme.spacing.lg,
     borderRadius: theme.borderRadius.xl,
@@ -214,8 +346,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 50,
   },
-  sendButtonDisabled: {
-    opacity: 0.6,
+  sendingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sendButtonText: {
     color: colors.textPrimary,
@@ -226,6 +360,35 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceLight,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.md,
+  },
+  infoCard: {
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+  },
+  infoIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  infoIconGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  infoTextContainer: {
+    padding: theme.spacing.md,
+  },
+  infoTitle: {
+    color: colors.textPrimary,
+    fontSize: theme.typography.fontSizes.md,
+    fontWeight: theme.typography.fontWeights.bold,
+    marginBottom: theme.spacing.xs,
   },
   infoText: {
     color: colors.textMuted,

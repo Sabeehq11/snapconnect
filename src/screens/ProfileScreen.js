@@ -9,12 +9,19 @@ import {
   ScrollView,
   TextInput,
   Modal,
+  FlatList,
+  Animated,
+  Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useFriends, useFriendRequests } from '../hooks/useFriends';
 import AddFriendModal from '../components/AddFriendModal';
 import { colors, theme } from '../utils/colors';
+import GlassView from '../components/GlassView';
+import NeuButton from '../components/NeuButton';
+import { AnimatedHeroGradient } from '../components/AnimatedGradient';
 
 const ProfileScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
@@ -22,6 +29,7 @@ const ProfileScreen = ({ navigation }) => {
   const { receivedRequests } = useFriendRequests();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
+  const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [editDisplayName, setEditDisplayName] = useState(user?.displayName || '');
 
   const handleLogout = () => {
@@ -50,21 +58,162 @@ const ProfileScreen = ({ navigation }) => {
     setShowEditModal(false);
   };
 
+  const handleViewFriends = () => {
+    if (friends?.length > 0) {
+      setShowFriendsModal(true);
+    } else {
+      setShowAddFriendModal(true);
+    }
+  };
+
+  const renderFriendItem = ({ item }) => (
+    <TouchableOpacity style={styles.friendItem} activeOpacity={0.8}>
+      <LinearGradient
+        colors={colors.gradients.card}
+        style={styles.friendItemGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.friendAvatar}>
+          <LinearGradient
+            colors={colors.gradients.primary}
+            style={styles.friendAvatarGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Text style={styles.friendAvatarText}>
+              {(item.display_name || item.username || item.email).charAt(0).toUpperCase()}
+            </Text>
+          </LinearGradient>
+          <View style={styles.friendOnlineIndicator} />
+        </View>
+        <View style={styles.friendInfo}>
+          <Text style={styles.friendName}>
+            {item.display_name || item.username || 'No name'}
+          </Text>
+          {item.username && (
+            <Text style={styles.friendUsername}>@{item.username}</Text>
+          )}
+          <Text style={styles.friendEmail} numberOfLines={1}>{item.email}</Text>
+        </View>
+        <TouchableOpacity 
+          style={styles.chatButton}
+          activeOpacity={0.7}
+          onPress={() => {
+            setShowFriendsModal(false);
+            navigation.navigate('Chat', { 
+              screen: 'ChatMain',
+              params: { friendId: item.id, friendName: item.display_name || item.username }
+            });
+          }}
+        >
+          <LinearGradient
+            colors={colors.gradients.accent}
+            style={styles.chatButtonGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Ionicons name="chatbubble" size={16} color={colors.white} />
+          </LinearGradient>
+        </TouchableOpacity>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+
   const menuItems = [
     { 
-      icon: '👥', 
-      title: 'Friends', 
+      icon: 'people',
+      iconType: 'Ionicons',
+      title: 'My Friends', 
       subtitle: `${friends?.length || 0} connections`,
+      onPress: handleViewFriends,
+      color: colors.gradients.primary,
+    },
+    { 
+      icon: 'mail',
+      iconType: 'Ionicons',
+      title: 'Friend Requests', 
+      subtitle: 'Manage incoming requests',
       onPress: () => navigation.navigate('FriendRequests'),
       showBadge: receivedRequests?.length > 0,
-      badgeCount: receivedRequests?.length || 0
+      badgeCount: receivedRequests?.length || 0,
+      color: colors.gradients.secondary,
     },
-    { icon: '📸', title: 'My Snaps', subtitle: 'Your photo memories' },
-    { icon: '🔔', title: 'Notifications', subtitle: 'Manage alerts' },
-    { icon: '🔒', title: 'Privacy & Security', subtitle: 'Account protection' },
-    { icon: '🎨', title: 'Appearance', subtitle: 'Themes and display' },
-    { icon: '❓', title: 'Help & Support', subtitle: 'Get assistance' },
+    { 
+      icon: 'camera',
+      iconType: 'Ionicons',
+      title: 'My Snaps', 
+      subtitle: 'Your photo memories',
+      color: colors.gradients.accent,
+    },
+    { 
+      icon: 'notifications',
+      iconType: 'Ionicons',
+      title: 'Notifications', 
+      subtitle: 'Manage alerts',
+      color: ['#FF6B6B', '#FF8E53'],
+    },
+    { 
+      icon: 'shield-checkmark',
+      iconType: 'Ionicons',
+      title: 'Privacy & Security', 
+      subtitle: 'Account protection',
+      color: ['#4ECDC4', '#44A08D'],
+    },
+    { 
+      icon: 'color-palette',
+      iconType: 'Ionicons',
+      title: 'Appearance', 
+      subtitle: 'Themes and display',
+      color: ['#A8EDEA', '#7F7FD3'],
+    },
+    { 
+      icon: 'help-circle',
+      iconType: 'Ionicons',
+      title: 'Help & Support', 
+      subtitle: 'Get assistance',
+      color: ['#FFECD2', '#FCB69F'],
+    },
   ];
+
+  const renderMenuItem = (item, index) => (
+    <TouchableOpacity 
+      key={index} 
+      style={styles.menuItem} 
+      onPress={item.onPress}
+      activeOpacity={0.8}
+    >
+      <LinearGradient
+        colors={colors.gradients.card}
+        style={styles.menuItemGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.menuItemLeft}>
+          <View style={styles.menuIconContainer}>
+            <LinearGradient
+              colors={item.color}
+              style={styles.menuIconBg}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Ionicons name={item.icon} size={22} color={colors.white} />
+            </LinearGradient>
+            {item.showBadge && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{item.badgeCount}</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.menuTextContainer}>
+            <Text style={styles.menuText}>{item.title}</Text>
+            <Text style={styles.menuSubtext}>{item.subtitle}</Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+      </LinearGradient>
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -76,6 +225,20 @@ const ProfileScreen = ({ navigation }) => {
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Profile</Text>
+            <TouchableOpacity 
+              style={styles.settingsButton}
+              onPress={handleEditProfile}
+              activeOpacity={0.7}
+            >
+              <LinearGradient
+                colors={colors.gradients.card}
+                style={styles.settingsButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons name="settings" size={20} color={colors.textPrimary} />
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
 
           {/* Profile Card */}
@@ -88,17 +251,34 @@ const ProfileScreen = ({ navigation }) => {
             >
               {/* Avatar */}
               <View style={styles.avatarContainer}>
-                <LinearGradient
-                  colors={colors.gradients.secondary}
-                  style={styles.avatar}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
+                <View style={styles.avatarWrapper}>
+                  <LinearGradient
+                    colors={colors.gradients.secondary}
+                    style={styles.avatar}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Text style={styles.avatarText}>
+                      {user?.displayName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}
+                    </Text>
+                  </LinearGradient>
+                  <View style={styles.onlineIndicator}>
+                    <View style={styles.onlineIndicatorInner} />
+                  </View>
+                </View>
+                <TouchableOpacity 
+                  style={styles.editAvatarButton}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.avatarText}>
-                    {user?.displayName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}
-                  </Text>
-                </LinearGradient>
-                <View style={styles.onlineIndicator} />
+                  <LinearGradient
+                    colors={colors.gradients.primary}
+                    style={styles.editAvatarGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Ionicons name="camera" size={12} color={colors.white} />
+                  </LinearGradient>
+                </TouchableOpacity>
               </View>
               
               <Text style={styles.displayName}>{user?.displayName || 'User'}</Text>
@@ -109,83 +289,75 @@ const ProfileScreen = ({ navigation }) => {
               
               {/* Stats */}
               <View style={styles.statsContainer}>
-                <View style={styles.statItem}>
+                <TouchableOpacity style={styles.statItem} activeOpacity={0.8}>
                   <Text style={styles.statNumber}>{user?.snapScore || 0}</Text>
                   <Text style={styles.statLabel}>Snap Score</Text>
-                </View>
+                </TouchableOpacity>
                 <View style={styles.statDivider} />
                 <TouchableOpacity 
                   style={styles.statItem}
-                  onPress={() => setShowAddFriendModal(true)}
+                  onPress={handleViewFriends}
+                  activeOpacity={0.8}
                 >
                   <Text style={styles.statNumber}>{friends?.length || 0}</Text>
                   <Text style={styles.statLabel}>Friends</Text>
-                  <Text style={styles.addFriendHint}>Tap to add</Text>
+                  <Text style={styles.addFriendHint}>
+                    {friends?.length > 0 ? 'Tap to view' : 'Tap to add'}
+                  </Text>
                 </TouchableOpacity>
                 <View style={styles.statDivider} />
-                <View style={styles.statItem}>
+                <TouchableOpacity style={styles.statItem} activeOpacity={0.8}>
                   <Text style={styles.statNumber}>24</Text>
                   <Text style={styles.statLabel}>Active Days</Text>
-                </View>
+                </TouchableOpacity>
               </View>
 
-              {/* Edit Button */}
-              <TouchableOpacity 
-                style={styles.editButton}
-                onPress={handleEditProfile}
-              >
-                <LinearGradient
-                  colors={colors.gradients.accent}
-                  style={styles.editButtonGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
+              {/* Action Buttons */}
+              <View style={styles.actionButtonsContainer}>
+                <TouchableOpacity 
+                  style={styles.primaryActionButton}
+                  onPress={handleEditProfile}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.editButtonText}>✏️ Edit Profile</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={colors.gradients.accent}
+                    style={styles.primaryActionGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    <Ionicons name="create" size={18} color={colors.white} />
+                    <Text style={styles.primaryActionText}>Edit Profile</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.secondaryActionButton}
+                  onPress={() => setShowAddFriendModal(true)}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={colors.gradients.primary}
+                    style={styles.secondaryActionGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    <Ionicons name="person-add" size={18} color={colors.white} />
+                    <Text style={styles.secondaryActionText}>Add Friend</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             </LinearGradient>
           </View>
 
           {/* Menu Section */}
           <View style={styles.menuSection}>
-            {menuItems.map((item, index) => (
-              <TouchableOpacity key={index} style={styles.menuItem} onPress={item.onPress}>
-                <LinearGradient
-                  colors={colors.gradients.card}
-                  style={styles.menuItemGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <View style={styles.menuItemLeft}>
-                    <View style={styles.menuIconContainer}>
-                      <LinearGradient
-                        colors={colors.gradients.primary}
-                        style={styles.menuIconBg}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                      >
-                        <Text style={styles.menuIcon}>{item.icon}</Text>
-                      </LinearGradient>
-                      {item.showBadge && (
-                        <View style={styles.badge}>
-                          <Text style={styles.badgeText}>{item.badgeCount}</Text>
-                        </View>
-                      )}
-                    </View>
-                    <View style={styles.menuTextContainer}>
-                      <Text style={styles.menuText}>{item.title}</Text>
-                      <Text style={styles.menuSubtext}>{item.subtitle}</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.menuArrow}>›</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            ))}
+            {menuItems.map(renderMenuItem)}
 
             {/* Logout Button */}
             <TouchableOpacity 
               style={[styles.menuItem, styles.logoutItem]} 
               onPress={handleLogout}
+              activeOpacity={0.8}
             >
               <LinearGradient
                 colors={[colors.darker, colors.medium]}
@@ -201,7 +373,7 @@ const ProfileScreen = ({ navigation }) => {
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                     >
-                      <Text style={styles.menuIcon}>🚪</Text>
+                      <Ionicons name="log-out" size={22} color={colors.white} />
                     </LinearGradient>
                   </View>
                   <View style={styles.menuTextContainer}>
@@ -209,6 +381,7 @@ const ProfileScreen = ({ navigation }) => {
                     <Text style={styles.menuSubtext}>Log out of your account</Text>
                   </View>
                 </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.error} />
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -260,6 +433,75 @@ const ProfileScreen = ({ navigation }) => {
             </View>
           </LinearGradient>
         </Modal>
+
+        {/* Friends List Modal */}
+        <Modal
+          visible={showFriendsModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowFriendsModal(false)}
+        >
+          <LinearGradient
+            colors={colors.gradients.dark}
+            style={styles.modalContainer}
+          >
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setShowFriendsModal(false)}>
+                <Text style={styles.modalCancel}>Close</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>My Friends ({friends?.length || 0})</Text>
+              <TouchableOpacity onPress={() => {
+                setShowFriendsModal(false);
+                setShowAddFriendModal(true);
+              }}>
+                <Text style={styles.modalSave}>Add Friend</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.friendsListContainer}>
+              {friends?.length > 0 ? (
+                <FlatList
+                  data={friends}
+                  renderItem={renderFriendItem}
+                  keyExtractor={(item) => item.id}
+                  style={styles.friendsList}
+                  contentContainerStyle={styles.friendsListContent}
+                  showsVerticalScrollIndicator={false}
+                />
+              ) : (
+                <View style={styles.emptyFriendsContainer}>
+                  <LinearGradient
+                    colors={colors.gradients.card}
+                    style={styles.emptyFriendsCard}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Text style={styles.emptyFriendsTitle}>No Friends Yet</Text>
+                    <Text style={styles.emptyFriendsText}>
+                      Start connecting with classmates by adding them as friends!
+                    </Text>
+                    <TouchableOpacity 
+                      style={styles.addFirstFriendButton}
+                      onPress={() => {
+                        setShowFriendsModal(false);
+                        setShowAddFriendModal(true);
+                      }}
+                    >
+                      <LinearGradient
+                        colors={colors.gradients.primary}
+                        style={styles.addFirstFriendGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      >
+                        <Text style={styles.addFirstFriendText}>Add Your First Friend</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </LinearGradient>
+                </View>
+              )}
+            </View>
+          </LinearGradient>
+        </Modal>
       </LinearGradient>
     </SafeAreaView>
   );
@@ -274,6 +516,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
     paddingTop: theme.spacing.lg,
@@ -283,12 +528,24 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeights.bold,
     color: colors.textPrimary,
   },
+  settingsButton: {
+    borderRadius: theme.borderRadius.full,
+    overflow: 'hidden',
+    ...theme.shadows.md,
+  },
+  settingsButtonGradient: {
+    width: 40,
+    height: 40,
+    borderRadius: theme.borderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   content: {
     flex: 1,
   },
   profileContainer: {
     paddingHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.lg,
+    marginBottom: theme.spacing.xl,
   },
   profileCard: {
     alignItems: 'center',
@@ -296,35 +553,65 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     borderRadius: theme.borderRadius.xl,
     ...theme.shadows.lg,
+    elevation: 8,
   },
   avatarContainer: {
     position: 'relative',
     marginBottom: theme.spacing.lg,
   },
+  avatarWrapper: {
+    position: 'relative',
+  },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: theme.borderRadius.full,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 4,
-    borderColor: colors.textPrimary,
+    ...theme.shadows.lg,
+    elevation: 8,
   },
   avatarText: {
-    fontSize: theme.typography.fontSizes.xxxl + 8,
+    fontSize: 48,
     fontWeight: theme.typography.fontWeights.bold,
     color: colors.textPrimary,
   },
   onlineIndicator: {
     position: 'absolute',
-    bottom: 5,
-    right: 5,
+    bottom: 8,
+    right: 8,
     width: 24,
     height: 24,
     borderRadius: theme.borderRadius.full,
     backgroundColor: colors.success,
     borderWidth: 3,
-    borderColor: colors.textPrimary,
+    borderColor: colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...theme.shadows.sm,
+  },
+  onlineIndicatorInner: {
+    width: 12,
+    height: 12,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: colors.white,
+  },
+  editAvatarButton: {
+    position: 'absolute',
+    bottom: -5,
+    right: -5,
+    width: 36,
+    height: 36,
+    borderRadius: theme.borderRadius.full,
+    overflow: 'hidden',
+    ...theme.shadows.lg,
+    elevation: 8,
+  },
+  editAvatarGradient: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   displayName: {
     fontSize: theme.typography.fontSizes.xxl + 4,
@@ -335,77 +622,113 @@ const styles = StyleSheet.create({
   },
   username: {
     fontSize: theme.typography.fontSizes.lg,
-    color: colors.accent,
-    fontWeight: theme.typography.fontWeights.semibold,
+    color: colors.textSecondary,
     marginBottom: theme.spacing.xs,
     textAlign: 'center',
   },
   email: {
     fontSize: theme.typography.fontSizes.md,
-    color: colors.textSecondary,
-    marginBottom: theme.spacing.lg,
+    color: colors.textMuted,
+    marginBottom: theme.spacing.xl,
     textAlign: 'center',
   },
   statsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme.spacing.lg,
+    justifyContent: 'space-around',
+    marginBottom: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.lg,
+    width: '100%',
   },
   statItem: {
     alignItems: 'center',
-    paddingHorizontal: theme.spacing.lg,
+    flex: 1,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
   },
   statNumber: {
-    fontSize: theme.typography.fontSizes.xl,
+    fontSize: theme.typography.fontSizes.xl + 2,
     fontWeight: theme.typography.fontWeights.bold,
     color: colors.textPrimary,
+    marginBottom: theme.spacing.xs,
   },
   statLabel: {
-    fontSize: theme.typography.fontSizes.xs,
+    fontSize: theme.typography.fontSizes.sm,
     color: colors.textSecondary,
-    marginTop: theme.spacing.xs,
-    textAlign: 'center',
-  },
-  addFriendHint: {
-    color: colors.accent,
-    fontSize: theme.typography.fontSizes.xs,
     fontWeight: theme.typography.fontWeights.medium,
-    marginTop: 2,
-    textAlign: 'center',
+    marginBottom: theme.spacing.xs,
   },
   statDivider: {
     width: 1,
-    height: 30,
-    backgroundColor: colors.textSecondary,
-    opacity: 0.3,
+    height: 40,
+    backgroundColor: colors.border,
+    marginHorizontal: theme.spacing.md,
   },
-  editButton: {
+  addFriendHint: {
+    fontSize: theme.typography.fontSizes.xs,
+    color: colors.textMuted,
+    fontWeight: theme.typography.fontWeights.medium,
+  },
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    width: '100%',
+    paddingHorizontal: theme.spacing.md,
+  },
+  primaryActionButton: {
+    flex: 1,
     borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
+    ...theme.shadows.md,
+    elevation: 4,
   },
-  editButtonGradient: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
+  primaryActionGradient: {
+    flexDirection: 'row',
+    paddingVertical: theme.spacing.md + 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
   },
-  editButtonText: {
-    color: colors.textPrimary,
-    fontWeight: theme.typography.fontWeights.semibold,
+  primaryActionText: {
+    color: colors.white,
     fontSize: theme.typography.fontSizes.md,
+    fontWeight: theme.typography.fontWeights.semibold,
+  },
+  secondaryActionButton: {
+    flex: 1,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+    ...theme.shadows.md,
+    elevation: 4,
+  },
+  secondaryActionGradient: {
+    flexDirection: 'row',
+    paddingVertical: theme.spacing.md + 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+  },
+  secondaryActionText: {
+    color: colors.white,
+    fontSize: theme.typography.fontSizes.md,
+    fontWeight: theme.typography.fontWeights.semibold,
   },
   menuSection: {
     paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.xl,
   },
   menuItem: {
-    marginBottom: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
     borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
+    ...theme.shadows.sm,
+    elevation: 2,
   },
   menuItemGradient: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: theme.spacing.md,
-    ...theme.shadows.sm,
+    justifyContent: 'space-between',
+    padding: theme.spacing.lg,
   },
   menuItemLeft: {
     flexDirection: 'row',
@@ -413,54 +736,50 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   menuIconContainer: {
-    marginRight: theme.spacing.md,
     position: 'relative',
+    marginRight: theme.spacing.lg,
   },
   menuIconBg: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: theme.borderRadius.lg,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  menuIcon: {
-    fontSize: theme.typography.fontSizes.lg,
+    ...theme.shadows.sm,
+    elevation: 2,
   },
   badge: {
     position: 'absolute',
     top: -6,
     right: -6,
     backgroundColor: colors.error,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: colors.black,
+    borderColor: colors.white,
+    ...theme.shadows.sm,
   },
   badgeText: {
-    color: colors.textPrimary,
-    fontSize: 10,
-    fontWeight: 'bold',
+    color: colors.white,
+    fontSize: 11,
+    fontWeight: theme.typography.fontWeights.bold,
   },
   menuTextContainer: {
     flex: 1,
   },
   menuText: {
-    fontSize: theme.typography.fontSizes.md,
+    fontSize: theme.typography.fontSizes.md + 1,
     color: colors.textPrimary,
-    fontWeight: theme.typography.fontWeights.medium,
-    marginBottom: 2,
+    fontWeight: theme.typography.fontWeights.semibold,
+    marginBottom: theme.spacing.xs,
   },
   menuSubtext: {
     fontSize: theme.typography.fontSizes.sm,
     color: colors.textMuted,
-  },
-  menuArrow: {
-    fontSize: theme.typography.fontSizes.xl,
-    color: colors.textMuted,
-    marginLeft: theme.spacing.md,
+    lineHeight: 16,
   },
   logoutItem: {
     marginTop: theme.spacing.lg,
@@ -468,6 +787,141 @@ const styles = StyleSheet.create({
   logoutText: {
     color: colors.error,
   },
+  
+  // Friend item styles
+  friendItem: {
+    marginBottom: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+    ...theme.shadows.sm,
+    elevation: 2,
+  },
+  friendItemGradient: {
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  friendAvatar: {
+    position: 'relative',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginRight: theme.spacing.lg,
+  },
+  friendAvatarGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...theme.shadows.sm,
+    elevation: 2,
+  },
+  friendAvatarText: {
+    color: colors.white,
+    fontSize: 20,
+    fontWeight: theme.typography.fontWeights.bold,
+  },
+  friendOnlineIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.success,
+    borderWidth: 2,
+    borderColor: colors.white,
+  },
+  friendInfo: {
+    flex: 1,
+  },
+  friendName: {
+    color: colors.textPrimary,
+    fontSize: theme.typography.fontSizes.md + 1,
+    fontWeight: theme.typography.fontWeights.semibold,
+    marginBottom: theme.spacing.xs,
+  },
+  friendUsername: {
+    color: colors.textSecondary,
+    fontSize: theme.typography.fontSizes.sm,
+    marginBottom: theme.spacing.xs,
+  },
+  friendEmail: {
+    color: colors.textMuted,
+    fontSize: theme.typography.fontSizes.xs,
+  },
+  chatButton: {
+    borderRadius: theme.borderRadius.full,
+    overflow: 'hidden',
+    ...theme.shadows.sm,
+    elevation: 2,
+  },
+  chatButtonGradient: {
+    width: 40,
+    height: 40,
+    borderRadius: theme.borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  // Friends list modal styles
+  friendsListContainer: {
+    flex: 1,
+    padding: theme.spacing.lg,
+  },
+  friendsList: {
+    flex: 1,
+  },
+  friendsListContent: {
+    paddingBottom: theme.spacing.xl,
+  },
+  emptyFriendsContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyFriendsCard: {
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.xl,
+    alignItems: 'center',
+    maxWidth: 300,
+    width: '100%',
+    ...theme.shadows.lg,
+    elevation: 8,
+  },
+  emptyFriendsTitle: {
+    fontSize: theme.typography.fontSizes.xl,
+    fontWeight: theme.typography.fontWeights.bold,
+    color: colors.textPrimary,
+    marginBottom: theme.spacing.md,
+  },
+  emptyFriendsText: {
+    fontSize: theme.typography.fontSizes.md,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: theme.spacing.xl,
+  },
+  addFirstFriendButton: {
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+    width: '100%',
+    ...theme.shadows.md,
+    elevation: 4,
+  },
+  addFirstFriendGradient: {
+    paddingVertical: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addFirstFriendText: {
+    color: colors.white,
+    fontSize: theme.typography.fontSizes.md,
+    fontWeight: theme.typography.fontWeights.semibold,
+  },
+  
   // Modal styles
   modalContainer: {
     flex: 1,
@@ -479,6 +933,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
     paddingTop: theme.spacing.xl,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   modalCancel: {
     color: colors.textSecondary,
@@ -499,21 +955,23 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
   },
   inputCard: {
-    padding: theme.spacing.lg,
     borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    ...theme.shadows.sm,
+    elevation: 2,
   },
   inputLabel: {
-    color: colors.textSecondary,
     fontSize: theme.typography.fontSizes.sm,
-    marginBottom: theme.spacing.sm,
     fontWeight: theme.typography.fontWeights.medium,
+    color: colors.textSecondary,
+    marginBottom: theme.spacing.sm,
   },
   textInput: {
     backgroundColor: colors.surface,
-    borderRadius: theme.borderRadius.md,
+    color: colors.textPrimary,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.md,
-    color: colors.textPrimary,
+    borderRadius: theme.borderRadius.lg,
     fontSize: theme.typography.fontSizes.md,
     borderWidth: 1,
     borderColor: colors.border,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
@@ -6,6 +6,7 @@ export const useFriends = () => {
   const [friends, setFriends] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const subscriptionRef = useRef(null);
 
   const fetchFriends = useCallback(async () => {
     if (!user) return;
@@ -32,37 +33,45 @@ export const useFriends = () => {
   }, [user]);
 
   useEffect(() => {
-    fetchFriends();
-
-    // Set up real-time subscription for friendships
-    let subscription = null;
-    
-    if (user) {
-      const channelName = `friendships-${user.id}-${Date.now()}`;
-      
-      subscription = supabase
-        .channel(channelName)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'friendships',
-          },
-          () => {
-            console.log('Friendship change detected, refetching friends...');
-            fetchFriends();
-          }
-        )
-        .subscribe();
+    // Clean up any existing subscription first
+    if (subscriptionRef.current) {
+      subscriptionRef.current.unsubscribe();
+      subscriptionRef.current = null;
     }
 
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    fetchFriends();
+
+    // Set up real-time subscription for friendships with a truly unique channel name
+    const channelName = `friendships-${user.id}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    subscriptionRef.current = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'friendships',
+        },
+        () => {
+          console.log('Friendship change detected, refetching friends...');
+          fetchFriends();
+        }
+      )
+      .subscribe();
+
     return () => {
-      if (subscription) {
-        subscription.unsubscribe();
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+        subscriptionRef.current = null;
       }
     };
-  }, [user?.id, fetchFriends]);
+  }, [user?.id]); // Only depend on user.id
 
   const sendFriendRequest = async (emailOrUsername, message = null) => {
     try {
@@ -98,8 +107,9 @@ export const useFriendRequests = () => {
   const [sentRequests, setSentRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const subscriptionRef = useRef(null);
 
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -135,40 +145,47 @@ export const useFriendRequests = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
-    fetchRequests();
-
-    // Only set up subscription if user exists and tables exist
-    let subscription = null;
-    
-    if (user) {
-      // Create unique channel name to avoid conflicts
-      const channelName = `friend-requests-${user.id}-${Date.now()}`;
-      
-      subscription = supabase
-        .channel(channelName)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'friend_requests',
-          },
-          () => {
-            fetchRequests();
-          }
-        )
-        .subscribe();
+    // Clean up any existing subscription first
+    if (subscriptionRef.current) {
+      subscriptionRef.current.unsubscribe();
+      subscriptionRef.current = null;
     }
 
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    fetchRequests();
+
+    // Create unique channel name to avoid conflicts with truly unique identifier
+    const channelName = `friend-requests-${user.id}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    subscriptionRef.current = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'friend_requests',
+        },
+        () => {
+          fetchRequests();
+        }
+      )
+      .subscribe();
+
     return () => {
-      if (subscription) {
-        subscription.unsubscribe();
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+        subscriptionRef.current = null;
       }
     };
-  }, [user?.id]); // Only depend on user.id to avoid recreating unnecessarily
+  }, [user?.id]); // Only depend on user.id
 
   const respondToRequest = async (requestId, response) => {
     try {

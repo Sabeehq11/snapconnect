@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
@@ -6,8 +6,15 @@ export const useChat = (chatId) => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const subscriptionRef = useRef(null);
 
   useEffect(() => {
+    // Clean up any existing subscription first
+    if (subscriptionRef.current) {
+      subscriptionRef.current.unsubscribe();
+      subscriptionRef.current = null;
+    }
+
     if (!chatId || !user) return;
 
     // Fetch initial messages
@@ -31,9 +38,10 @@ export const useChat = (chatId) => {
 
     fetchMessages();
 
-    // Set up real-time subscription
-    const subscription = supabase
-      .channel(`chat-${chatId}`)
+    // Set up real-time subscription with unique channel name
+    const channelName = `chat-${chatId}-${Math.random().toString(36).substr(2, 9)}`;
+    subscriptionRef.current = supabase
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -61,9 +69,12 @@ export const useChat = (chatId) => {
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+        subscriptionRef.current = null;
+      }
     };
-  }, [chatId, user]);
+  }, [chatId, user?.id]); // Only depend on chatId and user.id
 
   const sendMessage = async (content, messageType = 'text', mediaUrl = null, disappearAfterSeconds = 10, maxViews = 1) => {
     if (!user || !chatId) return;
@@ -104,10 +115,21 @@ export const useChat = (chatId) => {
 export const useChats = () => {
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [totalUnreadCount, setTotalUnreadCount] = useState(0);
   const { user } = useAuth();
+  const subscriptionRef = useRef(null);
 
   useEffect(() => {
-    if (!user) return;
+    // Clean up any existing subscription first
+    if (subscriptionRef.current) {
+      subscriptionRef.current.unsubscribe();
+      subscriptionRef.current = null;
+    }
+
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     const fetchChats = async () => {
       try {
@@ -124,7 +146,7 @@ export const useChats = () => {
           return;
         }
 
-        // For each chat, get the last message and participants info
+        // For each chat, get the last message, participants info, and unread count
         const enrichedChats = await Promise.all(
           (chatsData || []).map(async (chat) => {
             // Get last message
@@ -147,15 +169,28 @@ export const useChats = () => {
               .select('id, display_name, email')
               .in('id', chat.participants);
 
+            // Get unread count - messages where current user hasn't viewed
+            const { count: unreadCount } = await supabase
+              .from('messages')
+              .select('*', { count: 'exact', head: true })
+              .eq('chat_id', chat.id)
+              .neq('sender_id', user.id) // Not sent by current user
+              .not('viewed_by', 'cs', `[{"user_id":"${user.id}"}]`); // Not viewed by current user
+
             return {
               ...chat,
               last_message: lastMessage,
-              participants: participants || []
+              participants: participants || [],
+              unread_count: unreadCount || 0
             };
           })
         );
 
         setChats(enrichedChats);
+        
+        // Calculate total unread count
+        const totalUnread = enrichedChats.reduce((sum, chat) => sum + (chat.unread_count || 0), 0);
+        setTotalUnreadCount(totalUnread);
       } catch (error) {
         console.error('Error in fetchChats:', error);
       }
@@ -164,9 +199,10 @@ export const useChats = () => {
 
     fetchChats();
 
-    // Set up real-time subscription for chat updates
-    const subscription = supabase
-      .channel('user-chats')
+    // Set up real-time subscription for chat updates with unique channel name
+    const channelName = `user-chats-${user.id}-${Math.random().toString(36).substr(2, 9)}`;
+    subscriptionRef.current = supabase
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -179,12 +215,61 @@ export const useChats = () => {
           fetchChats();
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+        },
+        () => {
+          // Refetch chats when new messages arrive
+          fetchChats();
+        }
+      )
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+        subscriptionRef.current = null;
+      }
     };
-  }, [user]);
+  }, [user?.id]); // Only depend on user.id
+
+  const markChatAsRead = async (chatId) => {
+    if (!user || !chatId) return;
+
+    try {
+      // Get all unread messages in this chat
+      const { data: unreadMessages } = await supabase
+        .from('messages')
+        .select('id, viewed_by')
+        .eq('chat_id', chatId)
+        .neq('sender_id', user.id)
+        .not('viewed_by', 'cs', `[{"user_id":"${user.id}"}]`);
+
+      if (unreadMessages && unreadMessages.length > 0) {
+        // Mark all unread messages as viewed
+        const updates = unreadMessages.map(async (message) => {
+          const viewedBy = message.viewed_by || [];
+          const newViewedBy = [...viewedBy, {
+            user_id: user.id,
+            viewed_at: new Date().toISOString()
+          }];
+
+          return supabase
+            .from('messages')
+            .update({ viewed_by: newViewedBy })
+            .eq('id', message.id);
+        });
+
+        await Promise.all(updates);
+      }
+    } catch (error) {
+      console.error('Error marking chat as read:', error);
+    }
+  };
 
   const createChat = async (participantIds) => {
     if (!user) return;
@@ -208,6 +293,8 @@ export const useChats = () => {
   return {
     chats,
     loading,
+    totalUnreadCount,
     createChat,
+    markChatAsRead,
   };
 }; 
