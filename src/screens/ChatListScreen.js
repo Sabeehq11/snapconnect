@@ -24,8 +24,8 @@ import { AnimatedHeroGradient } from '../components/AnimatedGradient';
 
 const ChatListScreen = ({ navigation }) => {
   const { user } = useAuth();
-  const { chats, loading } = useChats();
-  const { friends, refetchFriends } = useFriends();
+  const { chats = [], loading } = useChats() || {};
+  const { friends = [], refetchFriends } = useFriends() || {};
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeTab, setActiveTab] = useState('chats');
   const [searchQuery, setSearchQuery] = useState('');
@@ -119,18 +119,14 @@ const ChatListScreen = ({ navigation }) => {
       <TouchableOpacity 
         style={styles.chatItem}
         onPress={handleChatPress}
-        activeOpacity={0.8}
+        activeOpacity={0.7}
       >
-        <LinearGradient
-          colors={colors.gradients.card}
-          style={styles.chatItemGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
+        <View style={styles.chatItemContent}>
+          {/* Avatar */}
           <View style={styles.avatarContainer}>
             <LinearGradient
               colors={colors.gradients.primary}
-              style={styles.avatarGradient}
+              style={styles.avatar}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
@@ -138,26 +134,29 @@ const ChatListScreen = ({ navigation }) => {
                 {chatName.charAt(0).toUpperCase()}
               </Text>
             </LinearGradient>
-            <View style={[styles.onlineIndicator, { backgroundColor: colors.success }]} />
+            <View style={styles.onlineIndicator} />
           </View>
           
+          {/* Chat Content */}
           <View style={styles.chatContent}>
             <View style={styles.chatHeader}>
               <Text style={styles.chatName} numberOfLines={1}>{chatName}</Text>
-              <View style={styles.headerRight}>
+              <View style={styles.rightSection}>
                 <Text style={styles.timestamp}>{timestamp}</Text>
                 {hasUnread && (
                   <View style={styles.unreadBadge}>
-                    <Text style={styles.unreadText}>{item.unread_count}</Text>
+                    <Text style={styles.unreadText}>
+                      {item.unread_count > 99 ? '99+' : item.unread_count}
+                    </Text>
                   </View>
                 )}
               </View>
             </View>
-            <Text style={styles.lastMessage} numberOfLines={2}>
+            <Text style={styles.lastMessage} numberOfLines={1}>
               {lastMessage}
             </Text>
           </View>
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -166,18 +165,13 @@ const ChatListScreen = ({ navigation }) => {
     <TouchableOpacity 
       style={styles.chatItem}
       onPress={() => startChatWithFriend(item)}
-      activeOpacity={0.8}
+      activeOpacity={0.7}
     >
-      <LinearGradient
-        colors={colors.gradients.card}
-        style={styles.chatItemGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
+      <View style={styles.chatItemContent}>
         <View style={styles.avatarContainer}>
           <LinearGradient
-            colors={colors.gradients.secondary}
-            style={styles.avatarGradient}
+            colors={colors.gradients.accent}
+            style={styles.avatar}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
@@ -185,7 +179,7 @@ const ChatListScreen = ({ navigation }) => {
               {(item.display_name || item.username || item.email).charAt(0).toUpperCase()}
             </Text>
           </LinearGradient>
-          <View style={[styles.onlineIndicator, { backgroundColor: colors.success }]} />
+          <View style={styles.onlineIndicator} />
         </View>
         
         <View style={styles.chatContent}>
@@ -194,14 +188,14 @@ const ChatListScreen = ({ navigation }) => {
               {item.display_name || item.username || item.email}
             </Text>
             <View style={styles.startChatIcon}>
-              <Ionicons name="chatbubble-ellipses" size={16} color={colors.accent} />
+              <Ionicons name="chatbubble-ellipses" size={16} color={colors.primary} />
             </View>
           </View>
           <Text style={styles.lastMessage} numberOfLines={1}>
-            Tap to start chatting • Online
+            Tap to start chatting
           </Text>
         </View>
-      </LinearGradient>
+      </View>
     </TouchableOpacity>
   );
 
@@ -398,7 +392,7 @@ const ChatListScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.black,
+    backgroundColor: '#1A1A1F',
   },
   backgroundGradient: {
     flex: 1,
@@ -431,7 +425,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: theme.spacing.md,
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: theme.borderRadius.lg,
   },
   searchGradient: {
@@ -450,7 +444,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: theme.spacing.lg,
     marginBottom: theme.spacing.lg,
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: theme.borderRadius.lg,
     padding: 4,
   },
@@ -470,7 +464,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   inactiveTabText: {
-    color: colors.textMuted,
+    color: 'rgba(255, 255, 255, 0.6)',
     fontSize: theme.typography.fontSizes.sm,
     fontWeight: theme.typography.fontWeights.medium,
   },
@@ -496,21 +490,22 @@ const styles = StyleSheet.create({
   },
   chatListContent: {
     paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.lg,
+    paddingBottom: 80,
   },
   chatItem: {
     marginBottom: theme.spacing.md,
     borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
   },
-  chatItemGradient: {
+  chatItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: theme.spacing.md,
-    ...theme.shadows.sm,
   },
   avatarContainer: {
     marginRight: theme.spacing.md,
   },
-  avatarGradient: {
+  avatar: {
     width: 54,
     height: 54,
     borderRadius: theme.borderRadius.full,
@@ -538,13 +533,13 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     flex: 1,
   },
-  headerRight: {
+  rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   timestamp: {
     fontSize: theme.typography.fontSizes.xs,
-    color: colors.textMuted,
+    color: 'rgba(255, 255, 255, 0.6)',
     marginLeft: theme.spacing.sm,
   },
   unreadBadge: {

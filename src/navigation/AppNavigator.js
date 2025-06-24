@@ -3,14 +3,13 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { View, Platform } from 'react-native';
+import { View, Platform, Text } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
 import { useChats } from '../hooks/useChat';
 import { colors, theme } from '../utils/colors';
-import { ChatTabIcon, CameraTabIcon, StoriesTabIcon, ProfileTabIcon } from '../components/AnimatedTabIcon';
 
-// Import screens (we'll create these next)
+// Import screens
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
 import EmailConfirmationScreen from '../screens/EmailConfirmationScreen';
@@ -25,26 +24,23 @@ import LoadingScreen from '../screens/LoadingScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Custom Tab Bar Icon with gradient background for active state
-const TabIcon = ({ name, iconType = 'Ionicons', focused, color, size }) => {
-  const IconComponent = iconType === 'MaterialIcons' ? MaterialIcons : Ionicons;
-  
+// Custom Tab Bar Icon with modern styling
+const TabIcon = ({ name, focused, color, size, hasNotifications, notificationCount }) => {
   if (focused) {
     return (
       <View style={{
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 56,
+        height: 32,
+        borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 2,
       }}>
         <LinearGradient
           colors={colors.gradients.primary}
           style={{
             width: '100%',
             height: '100%',
-            borderRadius: 20,
+            borderRadius: 16,
             justifyContent: 'center',
             alignItems: 'center',
             ...theme.shadows.sm,
@@ -52,13 +48,63 @@ const TabIcon = ({ name, iconType = 'Ionicons', focused, color, size }) => {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <IconComponent name={name} size={size} color={colors.white} />
+          <Ionicons name={name} size={size - 2} color={colors.white} />
+          {hasNotifications && (
+            <View style={{
+              position: 'absolute',
+              top: -4,
+              right: -4,
+              backgroundColor: colors.error,
+              borderRadius: 10,
+              minWidth: 20,
+              height: 20,
+              justifyContent: 'center',
+              alignItems: 'center',
+              paddingHorizontal: 6,
+              borderWidth: 2,
+              borderColor: colors.white,
+            }}>
+              <Text style={{
+                color: colors.white,
+                fontSize: 11,
+                fontWeight: '600',
+              }}>
+                {notificationCount > 99 ? '99+' : notificationCount}
+              </Text>
+            </View>
+          )}
         </LinearGradient>
       </View>
     );
   }
   
-  return <IconComponent name={name} size={size} color={color} />;
+  return (
+    <View style={{ position: 'relative' }}>
+      <Ionicons name={name} size={size} color={color} />
+      {hasNotifications && (
+        <View style={{
+          position: 'absolute',
+          top: -6,
+          right: -6,
+          backgroundColor: colors.error,
+          borderRadius: 8,
+          minWidth: 16,
+          height: 16,
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingHorizontal: 4,
+        }}>
+          <Text style={{
+            color: colors.white,
+            fontSize: 10,
+            fontWeight: '600',
+          }}>
+            {notificationCount > 9 ? '9+' : notificationCount}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
 };
 
 // Auth Stack for login/signup
@@ -94,56 +140,53 @@ const ProfileStack = () => {
 
 // Main Tab Navigator for authenticated users
 const MainTabNavigator = () => {
-  const { totalUnreadCount } = useChats();
+  const { totalUnreadCount = 0 } = useChats() || {};
 
   return (
     <Tab.Navigator
       screenOptions={({ route }) => {
-        // Check if we're in a chat room to completely hide the tab bar
+        // Check if we're in a chat room to hide the tab bar
         const routeName = route?.state?.routes[route.state.index]?.name;
         const nestedState = route?.state?.routes[route.state.index]?.state;
         const nestedRouteName = nestedState?.routes[nestedState.index]?.name;
         
-        // Completely hide tab bar in ChatRoom
+        // Hide tab bar in ChatRoom
         const shouldHideTabBar = nestedRouteName === 'ChatRoom';
         
         return {
           headerShown: false,
           tabBarStyle: shouldHideTabBar ? { 
-            display: 'none',
-            position: 'absolute',
-            bottom: -100, // Move completely off screen
-            height: 0,
+            display: 'none' 
           } : {
             position: 'absolute',
             bottom: 0,
-            left: 0,
-            right: 0,
-            backgroundColor: 'rgba(22, 27, 34, 0.95)',
-            borderTopWidth: 1,
-            borderTopColor: 'rgba(0, 168, 232, 0.2)',
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            paddingTop: 16,
-            paddingBottom: Platform.OS === 'ios' ? 36 : 16,
-            paddingHorizontal: 12,
-            height: Platform.OS === 'ios' ? 95 : 75,
+            left: 8,
+            right: 8,
+            backgroundColor: 'rgba(26, 26, 31, 0.95)',
+            borderRadius: 16,
+            paddingTop: 8,
+            paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+            paddingHorizontal: 8,
+            height: Platform.OS === 'ios' ? 70 : 56,
+            borderTopWidth: 0,
             elevation: 20,
             shadowColor: colors.black,
-            shadowOffset: { width: 0, height: -8 },
-            shadowOpacity: 0.4,
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.3,
             shadowRadius: 12,
-            backdropFilter: 'blur(20px)',
+            marginBottom: 8,
+            borderWidth: 1,
+            borderColor: 'rgba(255, 255, 255, 0.1)',
           },
           tabBarActiveTintColor: colors.white,
-          tabBarInactiveTintColor: colors.textMuted,
+          tabBarInactiveTintColor: 'rgba(255, 255, 255, 0.6)',
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: '600',
             marginTop: 4,
           },
           tabBarIconStyle: {
-            marginBottom: -4,
+            marginTop: 4,
           },
         };
       }}
@@ -154,10 +197,11 @@ const MainTabNavigator = () => {
         options={{
           tabBarLabel: 'Chats',
           tabBarIcon: ({ focused, color, size }) => (
-            <ChatTabIcon 
+            <TabIcon 
+              name="chatbubbles"
               focused={focused} 
               color={color} 
-              size={focused ? 20 : size}
+              size={size}
               hasNotifications={totalUnreadCount > 0}
               notificationCount={totalUnreadCount}
             />
@@ -170,10 +214,11 @@ const MainTabNavigator = () => {
         options={{
           tabBarLabel: 'Camera',
           tabBarIcon: ({ focused, color, size }) => (
-            <CameraTabIcon 
+            <TabIcon 
+              name="camera"
               focused={focused} 
               color={color} 
-              size={focused ? 20 : size} 
+              size={size} 
             />
           ),
         }}
@@ -184,10 +229,11 @@ const MainTabNavigator = () => {
         options={{
           tabBarLabel: 'Stories',
           tabBarIcon: ({ focused, color, size }) => (
-            <StoriesTabIcon
+            <TabIcon
+              name="play-circle"
               focused={focused} 
               color={color} 
-              size={focused ? 20 : size} 
+              size={size} 
             />
           ),
         }}
@@ -198,10 +244,11 @@ const MainTabNavigator = () => {
         options={{
           tabBarLabel: 'Profile',
           tabBarIcon: ({ focused, color, size }) => (
-            <ProfileTabIcon
+            <TabIcon
+              name="person"
               focused={focused} 
               color={color} 
-              size={focused ? 20 : size} 
+              size={size} 
             />
           ),
         }}
@@ -210,7 +257,6 @@ const MainTabNavigator = () => {
   );
 };
 
-// Main App Navigator
 const AppNavigator = () => {
   const { user, loading } = useAuth();
 

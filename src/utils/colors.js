@@ -1,27 +1,124 @@
 // SnapConnect Modern Dark Blue/Teal Theme
 export const colors = {
-  // Base dark colors - deeper, richer blacks
-  black: '#060A0D',          // Deep dark blue-black
-  darkest: '#0F1419',        // Very dark blue-grey
-  dark: '#161B22',           // Dark blue-grey
-  darker: '#1C2128',         // Medium dark blue-grey
-  medium: '#22272E',         // Medium blue-grey
-  light: '#2D333B',          // Light blue-grey
-  lighter: '#373E47',        // Lighter blue-grey
+  // Base colors - modern, bright theme
+  white: '#FFFFFF',
+  lightBackground: '#F8F9FA',    // Light background for modern look
+  cardBackground: '#FFFFFF',     // Clean white cards
+  black: '#000000',
+  darkest: '#1A1A1A',
+  dark: '#2C2C2E',
+  medium: '#3A3A3C',
+  light: '#48484A',
+  lighter: '#636366',
   
-  // Primary brand colors (blue/teal theme)
-  primary: '#00A8E8',        // Bright cyan blue
-  primaryLight: '#00BCD4',   // Light cyan
-  primaryDark: '#0077A3',    // Dark cyan blue
+  // Primary brand colors (blue/purple theme)
+  primary: '#6366F1',            // Modern indigo
+  primaryLight: '#8B8DFF',       // Light indigo
+  primaryDark: '#4F46E5',        // Dark indigo
   
-  // Accent colors - teal family
-  accent: '#00D4AA',         // Bright teal
-  accentLight: '#26E5B8',    // Light teal
-  accentDark: '#00B894',     // Dark teal
+  // Accent colors - vibrant but tasteful
+  accent: '#8B5CF6',             // Modern purple
+  accentLight: '#A78BFA',        // Light purple  
+  accentDark: '#7C3AED',         // Dark purple
   
-  secondary: '#0084FF',      // Electric blue
-  secondaryLight: '#42A5F5', // Light blue
-  secondaryDark: '#1976D2',  // Dark blue
+  secondary: '#3B82F6',          // Modern blue
+  secondaryLight: '#60A5FA',     // Light blue
+  secondaryDark: '#2563EB',      // Dark blue
+  
+  // Social media colors
+  snapYellow: '#FFFC00',         // Classic Snapchat yellow
+  snapBlue: '#00D4FF',           // Bright blue
+  
+  // Enhanced gradient combinations for modern UI
+  gradients: {
+    primary: ['#6366F1', '#8B5CF6'],           // Indigo to purple
+    accent: ['#8B5CF6', '#3B82F6'],            // Purple to blue
+    secondary: ['#3B82F6', '#06B6D4'],         // Blue to cyan
+    snapGradient: ['#6366F1', '#8B5CF6', '#3B82F6'], // Main brand gradient
+    bright: ['#FFFC00', '#FFD700'],            // Yellow gradient
+    card: ['#FFFFFF', '#F8F9FA'],              // Clean white gradient
+    hero: ['#6366F1', '#8B5CF6', '#3B82F6'],   // Hero gradient
+    
+    // Light mode gradients
+    lightCard: ['rgba(255, 255, 255, 0.95)', 'rgba(248, 249, 250, 0.95)'],
+    lightGlass: ['rgba(255, 255, 255, 0.8)', 'rgba(248, 249, 250, 0.8)'],
+    
+    // Dark mode gradients (keep existing)
+    dark: ['#161B22', '#1C2128'],
+    glassPrimary: ['rgba(99, 102, 241, 0.2)', 'rgba(139, 92, 246, 0.2)'],
+    glassAccent: ['rgba(139, 92, 246, 0.2)', 'rgba(59, 130, 246, 0.2)'],
+    glassDark: ['rgba(22, 27, 34, 0.8)', 'rgba(28, 33, 40, 0.8)'],
+    
+    // Notification colors
+    error: ['#EF4444', '#DC2626'],
+    success: ['#10B981', '#059669'],
+    warning: ['#F59E0B', '#D97706'],
+    
+    // Animated gradients for modern feel
+    ocean: ['#6366F1', '#8B5CF6', '#3B82F6', '#06B6D4'],
+    sunset: ['#FFFC00', '#FFD700', '#FFA500', '#FF6B6B'],
+    modern: ['#6366F1', '#8B5CF6', '#60A5FA', '#34D399'],
+  },
+  
+  // Text colors for light theme
+  textPrimary: '#1F2937',        // Dark gray for main text
+  textSecondary: '#6B7280',      // Medium gray for secondary text
+  textTertiary: '#9CA3AF',       // Light gray for tertiary text
+  textMuted: '#D1D5DB',          // Very light gray for muted text
+  textOnDark: '#FFFFFF',         // White text on dark backgrounds
+  textBrand: '#6366F1',          // Brand color for links/highlights
+  
+  // Dark theme text colors
+  textPrimaryDark: '#FFFFFF',
+  textSecondaryDark: '#D1D5DB',
+  textTertiaryDark: '#9CA3AF',
+  textMutedDark: '#6B7280',
+  
+  // Functional colors - modern, accessible
+  success: '#10B981',            // Modern green
+  successLight: '#34D399',
+  error: '#EF4444',              // Modern red
+  errorLight: '#F87171',
+  warning: '#F59E0B',            // Modern amber
+  warningLight: '#FBBF24',
+  info: '#3B82F6',               // Modern blue
+  infoLight: '#60A5FA',
+  
+  // Surface colors - light theme
+  surface: '#FFFFFF',
+  surfaceElevated: '#F8F9FA',
+  surfaceCard: '#FFFFFF',
+  surfaceHover: '#F3F4F6',
+  
+  // Surface colors - dark theme
+  surfaceDark: '#161B22',
+  surfaceElevatedDark: '#1C2128',
+  surfaceCardDark: '#22272E',
+  surfaceHoverDark: '#2D333B',
+  
+  // Border colors
+  border: '#E5E7EB',             // Light gray border
+  borderLight: '#F3F4F6',        // Very light border
+  borderDark: '#D1D5DB',         // Medium border
+  borderBrand: '#6366F1',        // Brand color border
+  
+  // Shadows for modern cards
+  shadow: 'rgba(0, 0, 0, 0.1)',
+  shadowMedium: 'rgba(0, 0, 0, 0.15)',
+  shadowHeavy: 'rgba(0, 0, 0, 0.25)',
+  shadowBrand: 'rgba(99, 102, 241, 0.25)',
+  
+  // Status colors
+  online: '#10B981',
+  offline: '#6B7280',
+  away: '#F59E0B',
+  busy: '#EF4444',
+  
+  // Chat colors
+  ownMessage: '#6366F1',
+  ownMessageText: '#FFFFFF',
+  otherMessage: '#F3F4F6',
+  otherMessageText: '#1F2937',
   
   // Enhanced gradient combinations for glassmorphism
   gradients: {
@@ -112,7 +209,6 @@ export const colors = {
   glowSecondary: 'rgba(0, 132, 255, 0.4)',
   
   // Legacy support (mapped to new colors)
-  white: '#FFFFFF',
   pink: '#EC4899',         // Keep pink for legacy compatibility
   purple: '#0084FF',       // Map to electric blue
   lightPurple: '#42A5F5',  // Map to light blue

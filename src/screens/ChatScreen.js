@@ -44,7 +44,7 @@ const ChatScreen = ({ route, navigation }) => {
       headerTitle: chatName,
       headerShown: true,
       headerStyle: {
-        backgroundColor: colors.dark,
+        backgroundColor: '#1A1A1F',
       },
       headerTintColor: colors.textPrimary,
       headerTitleStyle: {
@@ -355,7 +355,7 @@ const ChatScreen = ({ route, navigation }) => {
                   value={newMessage}
                   onChangeText={setNewMessage}
                   placeholder="Type a message..."
-                  placeholderTextColor={colors.textMuted}
+                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
                   multiline
                   returnKeyType="send"
                   onSubmitEditing={handleSendMessage}
@@ -431,7 +431,7 @@ const ChatScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.black,
+    backgroundColor: '#1A1A1F',
   },
   keyboardContainer: {
     flex: 1,
@@ -509,9 +509,9 @@ const styles = StyleSheet.create({
   inputContainer: {
     paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.sm,
-    backgroundColor: colors.dark,
+    backgroundColor: '#1A1A1F',
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -523,17 +523,17 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: theme.borderRadius.lg,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     marginRight: theme.spacing.sm,
-    color: colors.textPrimary,
+    color: colors.white,
     fontSize: theme.typography.fontSizes.md,
     maxHeight: 100,
     minHeight: 40,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     textAlignVertical: 'top',
   },
   sendButton: {
