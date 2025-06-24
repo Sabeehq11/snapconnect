@@ -9,12 +9,16 @@ import {
   Dimensions,
   Animated,
   StatusBar,
+  Modal,
+  Image,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { colors, theme } from '../utils/colors';
+import PhotoPreview from '../components/PhotoPreview';
 
 const { width, height } = Dimensions.get('window');
 
@@ -24,6 +28,10 @@ const CameraScreen = ({ navigation }) => {
   const [permission, requestPermission] = useCameraPermissions();
   const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
   const [isRecording, setIsRecording] = useState(false);
+  const [capturedPhoto, setCapturedPhoto] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [showPhotoPreview, setShowPhotoPreview] = useState(false);
+  const [showImagePreview, setShowImagePreview] = useState(false);
   const cameraRef = useRef(null);
   const captureAnimation = useRef(new Animated.Value(1)).current;
   const recordingAnimation = useRef(new Animated.Value(1)).current;
@@ -134,15 +142,66 @@ const CameraScreen = ({ navigation }) => {
           skipProcessing: false,
         });
 
+        // Save to library if permission granted
         if (mediaPermission?.granted) {
           await MediaLibrary.saveToLibraryAsync(photo.uri);
-          Alert.alert('📸 Snap Saved!', 'Your photo has been saved to your gallery!');
         }
+
+        // Show photo preview
+        setCapturedPhoto(photo.uri);
+        setShowPhotoPreview(true);
       } catch (error) {
         console.error('Error taking picture:', error);
         Alert.alert('😅 Oops!', 'Failed to capture snap. Try again!');
       }
     }
+  };
+
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to access your photos!');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaType.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.9,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImage(result.assets[0].uri);
+        setShowImagePreview(true);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
+  const handleSendPhoto = () => {
+    const photoUri = capturedPhoto || selectedImage;
+    const isFromGallery = !!selectedImage;
+    
+    setShowPhotoPreview(false);
+    setShowImagePreview(false);
+    setCapturedPhoto(null);
+    setSelectedImage(null);
+    
+    navigation.navigate('SendToFriends', { 
+      photoUri, 
+      isFromGallery 
+    });
+  };
+
+  const handleCancelPhoto = () => {
+    setShowPhotoPreview(false);
+    setShowImagePreview(false);
+    setCapturedPhoto(null);
+    setSelectedImage(null);
   };
 
   const startRecording = async () => {
@@ -222,7 +281,7 @@ const CameraScreen = ({ navigation }) => {
         {/* Bottom Controls */}
         <View style={styles.bottomControls}>
           {/* Gallery Button */}
-          <TouchableOpacity style={styles.galleryButton}>
+          <TouchableOpacity style={styles.galleryButton} onPress={pickImage}>
             <View style={styles.galleryPreview}>
               <Ionicons name="images" size={20} color={colors.white} />
             </View>
@@ -273,6 +332,36 @@ const CameraScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       </CameraView>
+
+      {/* Photo Preview Modal */}
+      <Modal
+        visible={showPhotoPreview}
+        animationType="slide"
+        statusBarTranslucent
+      >
+        {capturedPhoto && (
+          <PhotoPreview
+            photoUri={capturedPhoto}
+            onSend={handleSendPhoto}
+            onCancel={handleCancelPhoto}
+          />
+        )}
+      </Modal>
+
+      {/* Image Preview Modal */}
+      <Modal
+        visible={showImagePreview}
+        animationType="slide"
+        statusBarTranslucent
+      >
+        {selectedImage && (
+          <PhotoPreview
+            photoUri={selectedImage}
+            onSend={handleSendPhoto}
+            onCancel={handleCancelPhoto}
+          />
+        )}
+      </Modal>
     </View>
   );
 };

@@ -15,6 +15,7 @@ import {
   Platform,
   Keyboard,
   StatusBar,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
@@ -239,6 +240,7 @@ const ChatScreen = ({ route, navigation }) => {
   const renderMessage = ({ item }) => {
     const isOwnMessage = item.sender_id === user.id;
     const isDisappeared = item.is_disappeared;
+    const isImageMessage = item.message_type === 'image';
     
     if (isDisappeared && !isOwnMessage) {
       return null; // Don't show disappeared messages to other users
@@ -248,7 +250,8 @@ const ChatScreen = ({ route, navigation }) => {
       <TouchableOpacity
         style={[
           styles.messageContainer,
-          isOwnMessage ? styles.ownMessage : styles.otherMessage
+          isOwnMessage ? styles.ownMessage : styles.otherMessage,
+          isImageMessage && styles.imageMessageContainer
         ]}
         onPress={() => handleViewMessage(item)}
         disabled={isOwnMessage}
@@ -258,7 +261,8 @@ const ChatScreen = ({ route, navigation }) => {
           colors={isOwnMessage ? colors.gradients.primary : colors.gradients.card}
           style={[
             styles.messageBubble,
-            isDisappeared && styles.disappearedMessage
+            isDisappeared && styles.disappearedMessage,
+            isImageMessage && styles.imageBubble
           ]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -267,6 +271,20 @@ const ChatScreen = ({ route, navigation }) => {
             <Text style={styles.disappearedText}>
               {isOwnMessage ? '👁️ Viewed' : 'Message disappeared'}
             </Text>
+          ) : isImageMessage ? (
+            <View style={styles.imageMessageContent}>
+              <Image
+                source={{ uri: item.media_url }}
+                style={styles.messageImage}
+                resizeMode="cover"
+              />
+              <View style={styles.imageOverlay}>
+                {!isOwnMessage && (
+                  <Text style={styles.tapToViewImage}>📸 Tap to view snap</Text>
+                )}
+                <Text style={styles.imageCaption}>{item.content}</Text>
+              </View>
+            </View>
           ) : (
             <>
               <Text style={[
@@ -403,22 +421,45 @@ const ChatScreen = ({ route, navigation }) => {
                 style={styles.messageViewerOverlay}
                 onPress={closeMessageView}
               >
-                <LinearGradient
-                  colors={colors.gradients.card}
-                  style={styles.fullScreenMessage}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Text style={styles.fullScreenMessageText}>
-                    {viewingMessage?.content}
-                  </Text>
-                  <Text style={styles.fullScreenSender}>
-                    From: {viewingMessage?.sender?.display_name || 'Unknown'}
-                  </Text>
-                  <Text style={styles.disappearWarning}>
-                    This message will disappear in {viewingMessage?.disappear_after_seconds} seconds
-                  </Text>
-                </LinearGradient>
+                {viewingMessage?.message_type === 'image' ? (
+                  <View style={styles.fullScreenImageContainer}>
+                    <Image
+                      source={{ uri: viewingMessage.media_url }}
+                      style={styles.fullScreenImage}
+                      resizeMode="contain"
+                    />
+                    <View style={styles.fullScreenImageOverlay}>
+                      <Text style={styles.fullScreenImageCaption}>
+                        {viewingMessage.content}
+                      </Text>
+                      <Text style={styles.fullScreenSender}>
+                        From: {viewingMessage?.sender?.display_name || 'Unknown'}
+                      </Text>
+                      {viewingMessage.disappear_after_seconds && (
+                        <Text style={styles.disappearWarning}>
+                          This snap will disappear in {viewingMessage.disappear_after_seconds} seconds
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                ) : (
+                  <LinearGradient
+                    colors={colors.gradients.card}
+                    style={styles.fullScreenMessage}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Text style={styles.fullScreenMessageText}>
+                      {viewingMessage?.content}
+                    </Text>
+                    <Text style={styles.fullScreenSender}>
+                      From: {viewingMessage?.sender?.display_name || 'Unknown'}
+                    </Text>
+                    <Text style={styles.disappearWarning}>
+                      This message will disappear in {viewingMessage?.disappear_after_seconds} seconds
+                    </Text>
+                  </LinearGradient>
+                )}
               </TouchableOpacity>
             </LinearGradient>
           </Animated.View>
@@ -596,6 +637,71 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSizes.sm,
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  // Image message styles
+  imageMessageContainer: {
+    marginBottom: theme.spacing.md,
+  },
+  imageBubble: {
+    padding: 4,
+    maxWidth: width * 0.65,
+  },
+  imageMessageContent: {
+    position: 'relative',
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+  },
+  messageImage: {
+    width: width * 0.6,
+    height: width * 0.6 * 0.75, // 4:3 aspect ratio
+    borderRadius: theme.borderRadius.lg,
+  },
+  imageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    padding: theme.spacing.sm,
+  },
+  tapToViewImage: {
+    color: colors.white,
+    fontSize: theme.typography.fontSizes.xs,
+    fontWeight: theme.typography.fontWeights.semibold,
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  imageCaption: {
+    color: colors.white,
+    fontSize: theme.typography.fontSizes.sm,
+    textAlign: 'center',
+  },
+  // Full screen image styles
+  fullScreenImageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullScreenImage: {
+    width: width,
+    height: height,
+  },
+  fullScreenImageOverlay: {
+    position: 'absolute',
+    bottom: 50,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    alignItems: 'center',
+  },
+  fullScreenImageCaption: {
+    color: colors.white,
+    fontSize: theme.typography.fontSizes.lg,
+    textAlign: 'center',
+    marginBottom: theme.spacing.sm,
+    fontWeight: theme.typography.fontWeights.medium,
   },
 });
 

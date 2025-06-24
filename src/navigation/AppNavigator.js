@@ -20,6 +20,7 @@ import StoriesScreen from '../screens/StoriesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import FriendRequestsScreen from '../screens/FriendRequestsScreen';
 import LoadingScreen from '../screens/LoadingScreen';
+import SendToFriendsScreen from '../screens/SendToFriendsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -257,6 +258,23 @@ const MainTabNavigator = () => {
   );
 };
 
+// Main Stack Navigator that includes both tabs and modal screens
+const MainStackNavigator = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+      <Stack.Screen 
+        name="SendToFriends" 
+        component={SendToFriendsScreen}
+        options={{
+          presentation: 'modal',
+          gestureEnabled: true,
+        }}
+      />
+    </Stack.Navigator>
+  );
+};
+
 const AppNavigator = () => {
   const { user, loading } = useAuth();
 
@@ -266,7 +284,7 @@ const AppNavigator = () => {
 
   return (
     <NavigationContainer>
-      {user ? <MainTabNavigator /> : <AuthStack />}
+      {user ? <MainStackNavigator /> : <AuthStack />}
     </NavigationContainer>
   );
 };
