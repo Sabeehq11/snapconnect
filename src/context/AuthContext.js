@@ -18,11 +18,16 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await setUserFromSupabaseUser(session.user);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          await setUserFromSupabaseUser(session.user);
+        }
+      } catch (error) {
+        console.error('Error getting initial session:', error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     getInitialSession();
@@ -30,11 +35,16 @@ export const AuthProvider = ({ children }) => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (session?.user) {
+        console.log('Auth state change:', event, session?.user?.email);
+        
+        if (event === 'SIGNED_IN' && session?.user) {
           await setUserFromSupabaseUser(session.user);
-        } else {
+        } else if (event === 'SIGNED_OUT') {
           setUser(null);
+        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+          await setUserFromSupabaseUser(session.user);
         }
+        
         setLoading(false);
       }
     );
@@ -46,14 +56,49 @@ export const AuthProvider = ({ children }) => {
 
   const setUserFromSupabaseUser = async (supabaseUser) => {
     // Get additional user data from the users table
-    const { data: userData, error } = await supabase
+    let { data: userData, error } = await supabase
       .from('users')
       .select('*')
       .eq('id', supabaseUser.id)
       .single();
 
-    if (error && error.code !== 'PGRST116') {
-      // PGRST116 is "not found" - user might not exist in users table yet
+    if (error && error.code === 'PGRST116') {
+      // User not found in users table - create the profile
+      console.log('User profile not found, creating...');
+      try {
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert([
+            {
+              id: supabaseUser.id,
+              email: supabaseUser.email,
+              display_name: supabaseUser.user_metadata?.display_name || supabaseUser.email?.split('@')[0] || 'User',
+              username: supabaseUser.user_metadata?.username || supabaseUser.email?.split('@')[0] || `user_${supabaseUser.id.slice(0, 8)}`,
+              created_at: new Date().toISOString(),
+              friends: [],
+              snap_score: 0
+            }
+          ]);
+
+        if (insertError) {
+          console.error('Error creating user profile:', insertError);
+        } else {
+          console.log('User profile created successfully');
+          // Fetch the newly created user data
+          const { data: newUserData } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', supabaseUser.id)
+            .single();
+          
+          if (newUserData) {
+            userData = newUserData;
+          }
+        }
+      } catch (profileError) {
+        console.error('Error creating user profile:', profileError);
+      }
+    } else if (error) {
       console.error('Error fetching user data:', error);
     }
 
@@ -98,29 +143,40 @@ export const AuthProvider = ({ children }) => {
       throw error;
     }
 
-    // Create user record in the users table
+    // If signup was successful (even if email confirmation is pending)
     if (data.user) {
-      const { error: insertError } = await supabase
-        .from('users')
-        .insert([
-          {
-            id: data.user.id,
-            email: data.user.email,
-            display_name: displayName,
-            username: username,
-            created_at: new Date().toISOString(),
-            friends: [],
-            snap_score: 0
-          }
-        ]);
+      // Only try to create user record if the user was actually created
+      // Don't throw error if it fails here - the signup itself was successful
+      try {
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert([
+            {
+              id: data.user.id,
+              email: data.user.email,
+              display_name: displayName,
+              username: username,
+              created_at: new Date().toISOString(),
+              friends: [],
+              snap_score: 0
+            }
+          ]);
 
-      if (insertError) {
-        console.error('Error creating user record:', insertError);
-        throw new Error('Failed to create user profile. Please try again.');
+        if (insertError) {
+          console.log('User profile will be created after email confirmation:', insertError);
+        }
+      } catch (profileError) {
+        console.log('User profile will be created after email confirmation');
       }
+      
+      // Return success object with confirmation status
+      return {
+        user: data.user,
+        needsEmailConfirmation: !data.session // If no session, email confirmation is needed
+      };
     }
 
-    return data.user;
+    throw new Error('Signup failed for unknown reason');
   };
 
   const login = async (email, password) => {

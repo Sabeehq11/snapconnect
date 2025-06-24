@@ -11,6 +11,8 @@ import {
   Modal,
   Animated,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
@@ -53,14 +55,66 @@ const ChatScreen = ({ route, navigation }) => {
     }
   }, [messages]);
 
+  const ensureUserExists = async () => {
+    if (!user) return false;
+
+    try {
+      const { supabase } = require('../../lib/supabase');
+      
+      // Check if user exists in users table
+      const { data: existingUser, error: checkError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', user.id)
+        .single();
+
+      if (existingUser) {
+        return true; // User already exists
+      }
+
+      // If user doesn't exist, create the user record
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert([
+          {
+            id: user.id,
+            email: user.email,
+            display_name: user.displayName || user.email?.split('@')[0] || 'User',
+            username: user.username || user.email?.split('@')[0] || `user_${user.id.slice(0, 8)}`,
+            created_at: new Date().toISOString(),
+            friends: [],
+            snap_score: 0
+          }
+        ]);
+
+      if (insertError) {
+        console.error('Error creating user record:', insertError);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error ensuring user exists:', error);
+      return false;
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!newMessage.trim()) return;
 
     try {
+      // Ensure user exists in users table before sending message
+      const userExists = await ensureUserExists();
+      if (!userExists) {
+        Alert.alert('Error', 'Unable to verify user profile. Please try again.');
+        return;
+      }
+
       await sendMessage(newMessage.trim());
       setNewMessage('');
     } catch (error) {
-      Alert.alert('Error', 'Failed to send message');
+      console.error('Error sending message:', error);
+      Alert.alert('Error', 'Failed to send message. Please try again.');
     }
   };
 
@@ -205,52 +259,58 @@ const ChatScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient
-        colors={colors.gradients.dark}
-        style={styles.backgroundGradient}
+      <KeyboardAvoidingView 
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        <FlatList
-          ref={flatListRef}
-          data={filteredMessages}
-          renderItem={renderMessage}
-          keyExtractor={(item) => item.id}
-          style={styles.messagesList}
-          contentContainerStyle={styles.messagesContainer}
-          showsVerticalScrollIndicator={false}
-        />
+        <LinearGradient
+          colors={colors.gradients.dark}
+          style={styles.backgroundGradient}
+        >
+          <FlatList
+            ref={flatListRef}
+            data={filteredMessages}
+            renderItem={renderMessage}
+            keyExtractor={(item) => item.id}
+            style={styles.messagesList}
+            contentContainerStyle={styles.messagesContainer}
+            showsVerticalScrollIndicator={false}
+          />
 
-        <View style={styles.inputContainer}>
-          <LinearGradient
-            colors={colors.gradients.card}
-            style={styles.inputWrapper}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <TextInput
-              style={styles.textInput}
-              value={newMessage}
-              onChangeText={setNewMessage}
-              placeholder="Type a message..."
-              placeholderTextColor={colors.textMuted}
-              multiline
-              maxLength={500}
-            />
-            <TouchableOpacity
-              style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}
-              onPress={handleSendMessage}
-              disabled={!newMessage.trim()}
+          <View style={styles.inputContainer}>
+            <LinearGradient
+              colors={colors.gradients.card}
+              style={styles.inputWrapper}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
             >
-              <LinearGradient
-                colors={newMessage.trim() ? colors.gradients.primary : [colors.border, colors.border]}
-                style={styles.sendButtonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+              <TextInput
+                style={styles.textInput}
+                value={newMessage}
+                onChangeText={setNewMessage}
+                placeholder="Type a message..."
+                placeholderTextColor={colors.textMuted}
+                multiline
+                maxLength={500}
+              />
+              <TouchableOpacity
+                style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}
+                onPress={handleSendMessage}
+                disabled={!newMessage.trim()}
               >
-                <Text style={styles.sendButtonText}>→</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </LinearGradient>
-        </View>
+                <LinearGradient
+                  colors={newMessage.trim() ? colors.gradients.primary : [colors.border, colors.border]}
+                  style={styles.sendButtonGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={styles.sendButtonText}>Send</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </LinearGradient>
+          </View>
+        </LinearGradient>
 
         {/* Full screen message viewer */}
         <Modal
@@ -288,7 +348,7 @@ const ChatScreen = ({ route, navigation }) => {
             </LinearGradient>
           </Animated.View>
         </Modal>
-      </LinearGradient>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -297,6 +357,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.black,
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   backgroundGradient: {
     flex: 1,
@@ -388,17 +451,21 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: theme.typography.fontSizes.md,
     maxHeight: 100,
+    minHeight: 40,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   sendButton: {
     borderRadius: theme.borderRadius.full,
     overflow: 'hidden',
   },
   sendButtonGradient: {
-    width: 40,
+    minWidth: 50,
     height: 40,
     borderRadius: theme.borderRadius.full,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: theme.spacing.sm,
   },
   sendButtonDisabled: {
     opacity: 0.5,
@@ -406,7 +473,8 @@ const styles = StyleSheet.create({
   sendButtonText: {
     color: colors.textPrimary,
     fontWeight: theme.typography.fontWeights.bold,
-    fontSize: theme.typography.fontSizes.lg,
+    fontSize: 18,
+    textAlign: 'center',
   },
   messageViewer: {
     flex: 1,

@@ -47,7 +47,14 @@ const SignupScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      await signup(email, password, displayName, username);
+      const result = await signup(email, password, displayName, username);
+      
+      // If signup successful but needs email confirmation
+      if (result.needsEmailConfirmation) {
+        navigation.navigate('EmailConfirmation', { email });
+      }
+      // If signup successful and immediately signed in (no email confirmation needed)
+      // The auth state change will handle navigation automatically
     } catch (error) {
       Alert.alert('Signup Failed', error.message);
     }

@@ -12,6 +12,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { useFriends } from '../hooks/useFriends';
 import { colors, theme } from '../utils/colors';
 
 const CreateChatModal = ({ visible, onClose, onChatCreated }) => {
@@ -19,7 +20,9 @@ const CreateChatModal = ({ visible, onClose, onChatCreated }) => {
   const [users, setUsers] = useState([]);
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('friends');
   const { user } = useAuth();
+  const { friends, sendFriendRequest } = useFriends();
 
   useEffect(() => {
     if (visible) {
@@ -48,14 +51,43 @@ const CreateChatModal = ({ visible, onClose, onChatCreated }) => {
     }
   };
 
-  const filteredUsers = users.filter(u => {
+  const handleSendFriendRequest = async (targetUser) => {
+    try {
+      const result = await sendFriendRequest(targetUser.email);
+      if (result.success) {
+        Alert.alert('Success', `Friend request sent to ${targetUser.display_name || targetUser.username}!`);
+      } else {
+        Alert.alert('Error', result.error || 'Failed to send friend request');
+      }
+    } catch (error) {
+      console.error('Error sending friend request:', error);
+      Alert.alert('Error', 'Failed to send friend request. Please try again.');
+    }
+  };
+
+  const friendIds = friends.map(f => f.id);
+  
+  const filteredFriends = friends.filter(f => {
     const query = searchQuery.toLowerCase();
     return (
+      f.email.toLowerCase().includes(query) ||
+      (f.display_name && f.display_name.toLowerCase().includes(query)) ||
+      (f.username && f.username.toLowerCase().includes(query))
+    );
+  });
+
+  const filteredNonFriends = users.filter(u => {
+    const query = searchQuery.toLowerCase();
+    const isNotFriend = !friendIds.includes(u.id);
+    const matchesSearch = (
       u.email.toLowerCase().includes(query) ||
       (u.display_name && u.display_name.toLowerCase().includes(query)) ||
       (u.username && u.username.toLowerCase().includes(query))
     );
+    return isNotFriend && matchesSearch;
   });
+
+  const dataToShow = activeTab === 'friends' ? filteredFriends : filteredNonFriends;
 
   const toggleUserSelection = (selectedUser) => {
     setSelectedUsers(prev => {
@@ -70,7 +102,16 @@ const CreateChatModal = ({ visible, onClose, onChatCreated }) => {
 
   const createChat = async () => {
     if (selectedUsers.length === 0) {
-      Alert.alert('Error', 'Please select at least one user');
+      Alert.alert('Error', 'Please select at least one friend');
+      return;
+    }
+
+    // Ensure all selected users are friends
+    const selectedFriendIds = selectedUsers.map(u => u.id);
+    const allAreFriends = selectedFriendIds.every(id => friendIds.includes(id));
+    
+    if (!allAreFriends) {
+      Alert.alert('Error', 'You can only create chats with friends');
       return;
     }
 
@@ -102,53 +143,75 @@ const CreateChatModal = ({ visible, onClose, onChatCreated }) => {
 
   const renderUser = ({ item }) => {
     const isSelected = selectedUsers.find(u => u.id === item.id);
+    const isFriend = friendIds.includes(item.id);
     
     return (
-      <TouchableOpacity
-        style={[styles.userItem, isSelected && styles.userItemSelected]}
-        onPress={() => toggleUserSelection(item)}
-      >
+      <View style={styles.userItem}>
         <LinearGradient
           colors={isSelected ? colors.gradients.primary : colors.gradients.card}
           style={styles.userItemGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <View style={styles.avatar}>
-            <LinearGradient
-              colors={colors.gradients.accent}
-              style={styles.avatarGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Text style={styles.avatarText}>
-                {(item.display_name || item.username || item.email).charAt(0).toUpperCase()}
-              </Text>
-            </LinearGradient>
-          </View>
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>
-              {item.display_name || item.username || 'No name'}
-            </Text>
-            {item.username && (
-              <Text style={styles.userUsername}>@{item.username}</Text>
-            )}
-            <Text style={styles.userEmail}>{item.email}</Text>
-          </View>
-          {isSelected && (
-            <View style={styles.checkmarkContainer}>
+          <TouchableOpacity
+            style={styles.userContent}
+            onPress={() => isFriend ? toggleUserSelection(item) : null}
+            disabled={!isFriend}
+          >
+            <View style={styles.avatar}>
               <LinearGradient
                 colors={colors.gradients.accent}
-                style={styles.checkmarkBg}
+                style={styles.avatarGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               >
-                <Text style={styles.checkmark}>✓</Text>
+                <Text style={styles.avatarText}>
+                  {(item.display_name || item.username || item.email).charAt(0).toUpperCase()}
+                </Text>
               </LinearGradient>
             </View>
+            <View style={styles.userInfo}>
+              <Text style={styles.userName}>
+                {item.display_name || item.username || 'No name'}
+              </Text>
+              {item.username && (
+                <Text style={styles.userUsername}>@{item.username}</Text>
+              )}
+              <Text style={styles.userEmail}>{item.email}</Text>
+            </View>
+          </TouchableOpacity>
+          
+          {/* Action Button */}
+          {isFriend ? (
+            isSelected && (
+              <View style={styles.checkmarkContainer}>
+                <LinearGradient
+                  colors={colors.gradients.accent}
+                  style={styles.checkmarkBg}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={styles.checkmark}>✓</Text>
+                </LinearGradient>
+              </View>
+            )
+          ) : (
+            <TouchableOpacity
+              style={styles.addFriendButton}
+              onPress={() => handleSendFriendRequest(item)}
+            >
+              <LinearGradient
+                colors={colors.gradients.primary}
+                style={styles.addFriendButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Text style={styles.addFriendButtonText}>+</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           )}
         </LinearGradient>
-      </TouchableOpacity>
+      </View>
     );
   };
 
@@ -196,11 +259,31 @@ const CreateChatModal = ({ visible, onClose, onChatCreated }) => {
           </LinearGradient>
           {/* Debug info */}
           <Text style={styles.debugText}>
-            Found {users.length} total users, showing {filteredUsers.length} matches
+            Friends: {friends.length}, Others: {filteredNonFriends.length}
           </Text>
         </View>
 
-        {selectedUsers.length > 0 && (
+        {/* Tabs */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'friends' && styles.activeTab]}
+            onPress={() => setActiveTab('friends')}
+          >
+            <Text style={[styles.tabText, activeTab === 'friends' && styles.activeTabText]}>
+              Friends ({friends.length})
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'discover' && styles.activeTab]}
+            onPress={() => setActiveTab('discover')}
+          >
+            <Text style={[styles.tabText, activeTab === 'discover' && styles.activeTabText]}>
+              Add Friends ({filteredNonFriends.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {selectedUsers.length > 0 && activeTab === 'friends' && (
           <View style={styles.selectedContainer}>
             <LinearGradient
               colors={colors.gradients.card}
@@ -234,12 +317,22 @@ const CreateChatModal = ({ visible, onClose, onChatCreated }) => {
         )}
 
         <FlatList
-          data={filteredUsers}
+          data={dataToShow}
           renderItem={renderUser}
           keyExtractor={(item) => item.id}
           style={styles.usersList}
           contentContainerStyle={styles.usersListContent}
           showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                {activeTab === 'friends' 
+                  ? 'No friends found. Switch to "Add Friends" tab to send friend requests.' 
+                  : 'No users found to add as friends'
+                }
+              </Text>
+            </View>
+          }
         />
       </LinearGradient>
     </Modal>
@@ -305,6 +398,33 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.sm,
     textAlign: 'center',
   },
+  tabContainer: {
+    flexDirection: 'row',
+    marginHorizontal: theme.spacing.lg,
+    marginVertical: theme.spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: theme.borderRadius.lg,
+    padding: 4,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+  },
+  activeTab: {
+    backgroundColor: colors.primary,
+  },
+  tabText: {
+    color: colors.textMuted,
+    fontSize: theme.typography.fontSizes.sm,
+    fontWeight: theme.typography.fontWeights.medium,
+  },
+  activeTabText: {
+    color: colors.textPrimary,
+    fontWeight: theme.typography.fontWeights.bold,
+  },
   selectedContainer: {
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.md,
@@ -352,6 +472,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: theme.spacing.md,
     ...theme.shadows.sm,
+  },
+  userContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   avatar: {
     marginRight: theme.spacing.md,
@@ -401,6 +526,35 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: theme.typography.fontSizes.sm,
     fontWeight: theme.typography.fontWeights.bold,
+  },
+  addFriendButton: {
+    borderRadius: theme.borderRadius.full,
+    overflow: 'hidden',
+    marginLeft: theme.spacing.md,
+  },
+  addFriendButtonGradient: {
+    width: 36,
+    height: 36,
+    borderRadius: theme.borderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addFriendButtonText: {
+    color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.xxl,
+  },
+  emptyText: {
+    color: colors.textMuted,
+    fontSize: theme.typography.fontSizes.md,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
 

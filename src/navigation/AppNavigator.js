@@ -9,11 +9,13 @@ import colors from '../utils/colors';
 // Import screens (we'll create these next)
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
+import EmailConfirmationScreen from '../screens/EmailConfirmationScreen';
 import CameraScreen from '../screens/CameraScreen';
 import ChatListScreen from '../screens/ChatListScreen';
 import ChatScreen from '../screens/ChatScreen';
 import StoriesScreen from '../screens/StoriesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import FriendRequestsScreen from '../screens/FriendRequestsScreen';
 import LoadingScreen from '../screens/LoadingScreen';
 
 const Stack = createNativeStackNavigator();
@@ -25,6 +27,7 @@ const AuthStack = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Signup" component={SignupScreen} />
+      <Stack.Screen name="EmailConfirmation" component={EmailConfirmationScreen} />
     </Stack.Navigator>
   );
 };
@@ -35,6 +38,16 @@ const ChatStack = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ChatList" component={ChatListScreen} />
       <Stack.Screen name="ChatRoom" component={ChatScreen} />
+    </Stack.Navigator>
+  );
+};
+
+// Profile Stack for profile-related screens
+const ProfileStack = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ProfileMain" component={ProfileScreen} />
+      <Stack.Screen name="FriendRequests" component={FriendRequestsScreen} />
     </Stack.Navigator>
   );
 };
@@ -88,7 +101,7 @@ const MainTabNavigator = () => {
       />
       <Tab.Screen 
         name="Profile" 
-        component={ProfileScreen}
+        component={ProfileStack}
         options={{
           tabBarLabel: 'Profile',
           tabBarIcon: ({ color, size }) => (

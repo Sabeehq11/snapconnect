@@ -1,13 +1,19 @@
--- SnapConnect Database Migration - Fix All Issues
--- Run this script in Supabase SQL Editor to fix all database issues
+-- SnapConnect Complete Database Fix
+-- Run this entire script in your Supabase SQL Editor to fix all issues
 
--- SECTION 1: DROP EXISTING FOREIGN KEY CONSTRAINTS (if any exist)
--- This prevents conflicts when recreating them
+-- =====================================================
+-- SECTION 1: DROP EXISTING CONSTRAINTS (Clean Start)
+-- =====================================================
+
+-- Drop existing foreign key constraints if they exist
 ALTER TABLE IF EXISTS public.messages DROP CONSTRAINT IF EXISTS fk_messages_sender;
 ALTER TABLE IF EXISTS public.messages DROP CONSTRAINT IF EXISTS fk_messages_chat;
 ALTER TABLE IF EXISTS public.chats DROP CONSTRAINT IF EXISTS fk_chats_last_message;
 
--- SECTION 2: ENSURE ALL TABLES EXIST WITH PROPER STRUCTURE
+-- =====================================================
+-- SECTION 2: ENSURE ALL TABLES EXIST WITH CORRECT STRUCTURE
+-- =====================================================
+
 -- Users table
 CREATE TABLE IF NOT EXISTS public.users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -44,27 +50,32 @@ CREATE TABLE IF NOT EXISTS public.messages (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- SECTION 3: ADD MISSING COLUMNS
--- Add username column if it doesn't exist
+-- Add username column if missing
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS username TEXT UNIQUE;
 
--- SECTION 4: CREATE PROPER FOREIGN KEY CONSTRAINTS
--- Messages to Users (sender_id)
+-- =====================================================
+-- SECTION 3: CREATE PROPER FOREIGN KEY RELATIONSHIPS
+-- =====================================================
+
+-- Messages -> Users (sender_id)
 ALTER TABLE public.messages 
 ADD CONSTRAINT fk_messages_sender 
 FOREIGN KEY (sender_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
--- Messages to Chats (chat_id)
+-- Messages -> Chats (chat_id)
 ALTER TABLE public.messages 
 ADD CONSTRAINT fk_messages_chat 
 FOREIGN KEY (chat_id) REFERENCES public.chats(id) ON DELETE CASCADE;
 
--- Chats to Messages (last_message_id) - Optional relationship
+-- Chats -> Messages (last_message_id) - Optional
 ALTER TABLE public.chats 
 ADD CONSTRAINT fk_chats_last_message 
 FOREIGN KEY (last_message_id) REFERENCES public.messages(id) ON DELETE SET NULL;
 
--- SECTION 5: CREATE INDEXES FOR PERFORMANCE
+-- =====================================================
+-- SECTION 4: CREATE INDEXES FOR PERFORMANCE
+-- =====================================================
+
 CREATE INDEX IF NOT EXISTS idx_users_username ON public.users(username);
 CREATE INDEX IF NOT EXISTS idx_users_display_name ON public.users(display_name);
 CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
@@ -73,15 +84,20 @@ CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON public.messages(sender_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON public.messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_chats_participants ON public.chats USING GIN(participants);
 
--- SECTION 6: FIX RLS POLICIES
+-- =====================================================
+-- SECTION 5: FIX RLS POLICIES
+-- =====================================================
+
 -- Drop all existing policies
 DROP POLICY IF EXISTS "Enable read access for authenticated users" ON public.users;
-DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
 DROP POLICY IF EXISTS "Users can insert own profile" ON public.users;
+DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
 DROP POLICY IF EXISTS "Enable read access for chat participants" ON public.chats;
 DROP POLICY IF EXISTS "Enable insert for authenticated users" ON public.chats;
+DROP POLICY IF EXISTS "Enable update for chat participants" ON public.chats;
 DROP POLICY IF EXISTS "Enable read access for message participants" ON public.messages;
 DROP POLICY IF EXISTS "Enable insert for chat participants" ON public.messages;
+DROP POLICY IF EXISTS "Enable update for message sender" ON public.messages;
 
 -- Enable RLS on all tables
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -139,30 +155,45 @@ CREATE POLICY "Enable update for message sender"
 ON public.messages FOR UPDATE 
 USING (auth.uid() = sender_id);
 
--- SECTION 7: UPDATE EXISTING USERS WITH USERNAMES
+-- =====================================================
+-- SECTION 6: UPDATE EXISTING DATA
+-- =====================================================
+
 -- Generate usernames for users who don't have them
 UPDATE public.users 
 SET username = LOWER(REPLACE(COALESCE(display_name, SPLIT_PART(email, '@', 1)), ' ', '_')) || '_' || RIGHT(id::text, 6)
 WHERE username IS NULL OR username = '';
 
--- SECTION 8: CREATE TRIGGER TO AUTO-UPDATE TIMESTAMPS
-CREATE OR REPLACE FUNCTION update_updated_at_column()
+-- =====================================================
+-- SECTION 7: CREATE HELPER FUNCTIONS
+-- =====================================================
+
+-- Function to create user profile when auth user is created
+CREATE OR REPLACE FUNCTION public.handle_new_user() 
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
+  INSERT INTO public.users (id, email, username, display_name)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'username', NULL),
+    COALESCE(NEW.raw_user_meta_data->>'display_name', NEW.email)
+  );
+  RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
-CREATE TRIGGER update_users_updated_at 
-    BEFORE UPDATE ON public.users 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- Trigger to automatically create user profile
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- SECTION 9: VERIFICATION QUERIES
-SELECT '=== MIGRATION VERIFICATION ===' as section;
+-- =====================================================
+-- SECTION 8: VERIFICATION QUERIES
+-- =====================================================
 
--- Check foreign keys are created
+-- Check that foreign keys were created
 SELECT 
     'Foreign Key Constraints:' as info,
     COUNT(*) as constraint_count
@@ -170,12 +201,11 @@ FROM information_schema.table_constraints
 WHERE constraint_type = 'FOREIGN KEY' 
 AND table_name IN ('messages', 'chats');
 
--- Check users with usernames
+-- Check users
 SELECT 
     'Users Status:' as info,
     COUNT(*) as total_users,
-    COUNT(username) as users_with_username,
-    COUNT(CASE WHEN username IS NOT NULL AND username != '' THEN 1 END) as valid_usernames
+    COUNT(username) as users_with_username
 FROM public.users;
 
 -- Check RLS policies
@@ -189,8 +219,8 @@ AND tablename IN ('users', 'chats', 'messages')
 GROUP BY tablename
 ORDER BY tablename;
 
--- Test user search (this should work now)
-SELECT '=== USER SEARCH TEST ===' as section;
+-- Display current users for testing
+SELECT 'Current Users for Testing:' as section;
 SELECT 
     id, 
     email, 
@@ -200,5 +230,7 @@ SELECT
 FROM public.users
 ORDER BY created_at DESC;
 
-SELECT 'Migration completed successfully!' as status;
-SELECT 'Now restart your Expo app with: npx expo start --clear' as next_step; 
+-- Success message
+SELECT '✅ DATABASE SETUP COMPLETE!' as status;
+SELECT 'You can now restart your app: npx expo start --clear' as next_step;
+SELECT 'The foreign key errors should be resolved!' as final_note; 

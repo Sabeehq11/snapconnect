@@ -12,11 +12,16 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
+import { useFriends, useFriendRequests } from '../hooks/useFriends';
+import AddFriendModal from '../components/AddFriendModal';
 import { colors, theme } from '../utils/colors';
 
-const ProfileScreen = () => {
+const ProfileScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
+  const { friends } = useFriends();
+  const { receivedRequests } = useFriendRequests();
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [editDisplayName, setEditDisplayName] = useState(user?.displayName || '');
 
   const handleLogout = () => {
@@ -46,7 +51,14 @@ const ProfileScreen = () => {
   };
 
   const menuItems = [
-    { icon: '👥', title: 'Friends', subtitle: `${user?.friends?.length || 0} connections` },
+    { 
+      icon: '👥', 
+      title: 'Friends', 
+      subtitle: `${friends?.length || 0} connections`,
+      onPress: () => navigation.navigate('FriendRequests'),
+      showBadge: receivedRequests?.length > 0,
+      badgeCount: receivedRequests?.length || 0
+    },
     { icon: '📸', title: 'My Snaps', subtitle: 'Your photo memories' },
     { icon: '🔔', title: 'Notifications', subtitle: 'Manage alerts' },
     { icon: '🔒', title: 'Privacy & Security', subtitle: 'Account protection' },
@@ -102,10 +114,14 @@ const ProfileScreen = () => {
                   <Text style={styles.statLabel}>Snap Score</Text>
                 </View>
                 <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>{user?.friends?.length || 0}</Text>
+                <TouchableOpacity 
+                  style={styles.statItem}
+                  onPress={() => setShowAddFriendModal(true)}
+                >
+                  <Text style={styles.statNumber}>{friends?.length || 0}</Text>
                   <Text style={styles.statLabel}>Friends</Text>
-                </View>
+                  <Text style={styles.addFriendHint}>Tap to add</Text>
+                </TouchableOpacity>
                 <View style={styles.statDivider} />
                 <View style={styles.statItem}>
                   <Text style={styles.statNumber}>24</Text>
@@ -133,7 +149,7 @@ const ProfileScreen = () => {
           {/* Menu Section */}
           <View style={styles.menuSection}>
             {menuItems.map((item, index) => (
-              <TouchableOpacity key={index} style={styles.menuItem}>
+              <TouchableOpacity key={index} style={styles.menuItem} onPress={item.onPress}>
                 <LinearGradient
                   colors={colors.gradients.card}
                   style={styles.menuItemGradient}
@@ -150,6 +166,11 @@ const ProfileScreen = () => {
                       >
                         <Text style={styles.menuIcon}>{item.icon}</Text>
                       </LinearGradient>
+                      {item.showBadge && (
+                        <View style={styles.badge}>
+                          <Text style={styles.badgeText}>{item.badgeCount}</Text>
+                        </View>
+                      )}
                     </View>
                     <View style={styles.menuTextContainer}>
                       <Text style={styles.menuText}>{item.title}</Text>
@@ -192,6 +213,12 @@ const ProfileScreen = () => {
             </TouchableOpacity>
           </View>
         </ScrollView>
+
+        {/* Add Friend Modal */}
+        <AddFriendModal
+          visible={showAddFriendModal}
+          onClose={() => setShowAddFriendModal(false)}
+        />
 
         {/* Edit Profile Modal */}
         <Modal
@@ -339,6 +366,13 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.xs,
     textAlign: 'center',
   },
+  addFriendHint: {
+    color: colors.accent,
+    fontSize: theme.typography.fontSizes.xs,
+    fontWeight: theme.typography.fontWeights.medium,
+    marginTop: 2,
+    textAlign: 'center',
+  },
   statDivider: {
     width: 1,
     height: 30,
@@ -380,6 +414,7 @@ const styles = StyleSheet.create({
   },
   menuIconContainer: {
     marginRight: theme.spacing.md,
+    position: 'relative',
   },
   menuIconBg: {
     width: 44,
@@ -390,6 +425,24 @@ const styles = StyleSheet.create({
   },
   menuIcon: {
     fontSize: theme.typography.fontSizes.lg,
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: colors.error,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.black,
+  },
+  badgeText: {
+    color: colors.textPrimary,
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   menuTextContainer: {
     flex: 1,

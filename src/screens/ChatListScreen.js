@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,16 +8,30 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
 import { useChats } from '../hooks/useChat';
+import { useFriends } from '../hooks/useFriends';
 import CreateChatModal from '../components/CreateChatModal';
+import { supabase } from '../../lib/supabase';
 import { colors, theme } from '../utils/colors';
 
 const ChatListScreen = ({ navigation }) => {
   const { user } = useAuth();
   const { chats, loading } = useChats();
+  const { friends, refetchFriends } = useFriends();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [activeTab, setActiveTab] = useState('chats');
+
+  // Refresh friends when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (refetchFriends) {
+        refetchFriends();
+      }
+    }, [refetchFriends])
+  );
 
   const formatTimestamp = (timestamp) => {
     const date = new Date(timestamp);
@@ -52,6 +66,37 @@ const ChatListScreen = ({ navigation }) => {
       return lastMsg.content || 'Media message';
     }
     return 'Start the conversation...';
+  };
+
+  const startChatWithFriend = async (friend) => {
+    try {
+      // Create a new chat with the friend
+      const participants = [user.id, friend.id];
+      
+      const { data: newChat, error } = await supabase
+        .from('chats')
+        .insert([{ participants }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating chat:', error);
+        return;
+      }
+
+      if (newChat) {
+        // Switch to chats tab first
+        setActiveTab('chats');
+        
+        // Navigate to the new chat
+        navigation.navigate('ChatRoom', { 
+          chatId: newChat.id, 
+          chatName: friend.display_name || friend.username || friend.email 
+        });
+      }
+    } catch (error) {
+      console.error('Error starting chat with friend:', error);
+    }
   };
 
   const renderChatItem = ({ item }) => {
@@ -97,6 +142,45 @@ const ChatListScreen = ({ navigation }) => {
     );
   };
 
+  const renderFriendItem = ({ item }) => (
+    <TouchableOpacity 
+      style={styles.chatItem}
+      onPress={() => startChatWithFriend(item)}
+    >
+      <LinearGradient
+        colors={colors.gradients.card}
+        style={styles.chatItemGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.avatar}>
+          <LinearGradient
+            colors={colors.gradients.secondary}
+            style={styles.avatarGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Text style={styles.avatarText}>
+              {(item.display_name || item.username || item.email).charAt(0).toUpperCase()}
+            </Text>
+          </LinearGradient>
+        </View>
+        
+        <View style={styles.chatContent}>
+          <View style={styles.chatHeader}>
+            <Text style={styles.chatName}>
+              {item.display_name || item.username || item.email}
+            </Text>
+            <Text style={styles.onlineStatus}>●</Text>
+          </View>
+          <Text style={styles.lastMessage} numberOfLines={1}>
+            Tap to start a chat
+          </Text>
+        </View>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -123,7 +207,9 @@ const ChatListScreen = ({ navigation }) => {
         style={styles.backgroundGradient}
       >
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Messages</Text>
+          <Text style={styles.headerTitle}>
+            {activeTab === 'chats' ? 'Messages' : 'Friends'}
+          </Text>
           <TouchableOpacity 
             style={styles.addButton}
             onPress={() => setShowCreateModal(true)}
@@ -139,42 +225,90 @@ const ChatListScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {chats.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <LinearGradient
-              colors={colors.gradients.card}
-              style={styles.emptyCard}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Text style={styles.emptyTitle}>No conversations yet</Text>
-              <Text style={styles.emptyText}>
-                Start connecting with friends and colleagues
-              </Text>
-              <TouchableOpacity
-                style={styles.emptyButton}
-                onPress={() => setShowCreateModal(true)}
+        {/* Tabs */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'chats' && styles.activeTab]}
+            onPress={() => setActiveTab('chats')}
+          >
+            <Text style={[styles.tabText, activeTab === 'chats' && styles.activeTabText]}>
+              Chats ({chats.length})
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'friends' && styles.activeTab]}
+            onPress={() => setActiveTab('friends')}
+          >
+            <Text style={[styles.tabText, activeTab === 'friends' && styles.activeTabText]}>
+              Friends ({friends.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Content */}
+        {activeTab === 'chats' ? (
+          chats.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <LinearGradient
+                colors={colors.gradients.card}
+                style={styles.emptyCard}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
               >
-                <LinearGradient
-                  colors={colors.gradients.accent}
-                  style={styles.emptyButtonGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
+                <Text style={styles.emptyTitle}>No conversations yet</Text>
+                <Text style={styles.emptyText}>
+                  Start connecting with friends and colleagues
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyButton}
+                  onPress={() => setShowCreateModal(true)}
                 >
-                  <Text style={styles.emptyButtonText}>Start Chatting</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </LinearGradient>
-          </View>
+                  <LinearGradient
+                    colors={colors.gradients.accent}
+                    style={styles.emptyButtonGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    <Text style={styles.emptyButtonText}>Start Chatting</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </LinearGradient>
+            </View>
+          ) : (
+            <FlatList
+              data={chats}
+              renderItem={renderChatItem}
+              keyExtractor={(item) => item.id}
+              style={styles.chatList}
+              contentContainerStyle={styles.chatListContent}
+              showsVerticalScrollIndicator={false}
+            />
+          )
         ) : (
-          <FlatList
-            data={chats}
-            renderItem={renderChatItem}
-            keyExtractor={(item) => item.id}
-            style={styles.chatList}
-            contentContainerStyle={styles.chatListContent}
-            showsVerticalScrollIndicator={false}
-          />
+          friends.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <LinearGradient
+                colors={colors.gradients.card}
+                style={styles.emptyCard}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Text style={styles.emptyTitle}>No friends yet</Text>
+                <Text style={styles.emptyText}>
+                  Add friends to start chatting with them
+                </Text>
+              </LinearGradient>
+            </View>
+          ) : (
+            <FlatList
+              data={friends}
+              renderItem={renderFriendItem}
+              keyExtractor={(item) => item.id}
+              style={styles.chatList}
+              contentContainerStyle={styles.chatListContent}
+              showsVerticalScrollIndicator={false}
+            />
+          )
         )}
 
         <CreateChatModal
@@ -228,6 +362,37 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: theme.typography.fontWeights.bold,
     color: colors.textPrimary,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    marginHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: theme.borderRadius.lg,
+    padding: 4,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+  },
+  activeTab: {
+    backgroundColor: colors.primary,
+  },
+  tabText: {
+    color: colors.textMuted,
+    fontSize: theme.typography.fontSizes.sm,
+    fontWeight: theme.typography.fontWeights.medium,
+  },
+  activeTabText: {
+    color: colors.textPrimary,
+    fontWeight: theme.typography.fontWeights.bold,
+  },
+  onlineStatus: {
+    color: colors.success,
+    fontSize: 12,
   },
   chatList: {
     flex: 1,
