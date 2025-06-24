@@ -2,6 +2,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import colors from '../utils/colors';
 
@@ -60,6 +61,9 @@ const MainTabNavigator = () => {
         component={ChatStack}
         options={{
           tabBarLabel: 'Chat',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubbles" size={size} color={color} />
+          ),
         }}
       />
       <Tab.Screen 
@@ -67,6 +71,9 @@ const MainTabNavigator = () => {
         component={CameraScreen}
         options={{
           tabBarLabel: 'Camera',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="camera" size={size} color={color} />
+          ),
         }}
       />
       <Tab.Screen 
@@ -74,6 +81,9 @@ const MainTabNavigator = () => {
         component={StoriesScreen}
         options={{
           tabBarLabel: 'Stories',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialIcons name="auto-stories" size={size} color={color} />
+          ),
         }}
       />
       <Tab.Screen 
@@ -81,6 +91,9 @@ const MainTabNavigator = () => {
         component={ProfileScreen}
         options={{
           tabBarLabel: 'Profile',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
+          ),
         }}
       />
     </Tab.Navigator>

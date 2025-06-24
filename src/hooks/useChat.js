@@ -110,20 +110,54 @@ export const useChats = () => {
     if (!user) return;
 
     const fetchChats = async () => {
-      const { data, error } = await supabase
-        .from('chats')
-        .select(`
-          *,
-          messages:messages!last_message_id(content, created_at, sender_id),
-          participants:users!inner(id, display_name, email)
-        `)
-        .contains('participants', [user.id])
-        .order('last_message_at', { ascending: false });
+      try {
+        // First, get chats for the user
+        const { data: chatsData, error: chatsError } = await supabase
+          .from('chats')
+          .select('*')
+          .contains('participants', [user.id])
+          .order('last_message_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching chats:', error);
-      } else {
-        setChats(data || []);
+        if (chatsError) {
+          console.error('Error fetching chats:', chatsError);
+          setLoading(false);
+          return;
+        }
+
+        // For each chat, get the last message and participants info
+        const enrichedChats = await Promise.all(
+          (chatsData || []).map(async (chat) => {
+            // Get last message
+            const { data: lastMessage } = await supabase
+              .from('messages')
+              .select(`
+                content,
+                created_at,
+                sender_id,
+                sender:users!sender_id(display_name, email)
+              `)
+              .eq('chat_id', chat.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single();
+
+            // Get participants info
+            const { data: participants } = await supabase
+              .from('users')
+              .select('id, display_name, email')
+              .in('id', chat.participants);
+
+            return {
+              ...chat,
+              last_message: lastMessage,
+              participants: participants || []
+            };
+          })
+        );
+
+        setChats(enrichedChats);
+      } catch (error) {
+        console.error('Error in fetchChats:', error);
       }
       setLoading(false);
     };
