@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   Dimensions,
   StatusBar,
+  Text,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,7 +15,7 @@ import { colors } from '../utils/colors';
 
 const { width, height } = Dimensions.get('window');
 
-const PhotoPreview = ({ photoUri, onSend, onCancel }) => {
+const PhotoPreview = ({ photoUri, onSendToFriends, onPostToStory, onCancel }) => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.black} />
@@ -24,21 +25,34 @@ const PhotoPreview = ({ photoUri, onSend, onCancel }) => {
       
       {/* Action Buttons */}
       <SafeAreaView style={styles.actionContainer}>
-        <View style={styles.actionButtons}>
-          {/* Cancel Button */}
-          <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-            <Ionicons name="close" size={24} color={colors.white} />
-          </TouchableOpacity>
-          
-          {/* Send Button */}
-          <TouchableOpacity style={styles.sendButton} onPress={onSend}>
+        {/* Cancel Button - Top Left */}
+        <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
+          <Ionicons name="close" size={24} color={colors.white} />
+        </TouchableOpacity>
+        
+        {/* Bottom Action Buttons */}
+        <View style={styles.bottomActions}>
+          <TouchableOpacity style={styles.actionButton} onPress={onSendToFriends}>
             <LinearGradient
               colors={colors.gradients.primary}
-              style={styles.sendButtonGradient}
+              style={styles.actionButtonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
               <Ionicons name="send" size={20} color={colors.white} />
+              <Text style={styles.actionButtonText}>Send to Friends</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.actionButton} onPress={onPostToStory}>
+            <LinearGradient
+              colors={colors.gradients.accent}
+              style={styles.actionButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Ionicons name="book" size={20} color={colors.white} />
+              <Text style={styles.actionButtonText}>Post to Story</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -59,18 +73,16 @@ const styles = StyleSheet.create({
   },
   actionContainer: {
     position: 'absolute',
+    top: 0,
     bottom: 0,
     left: 0,
     right: 0,
-    paddingBottom: 40,
-  },
-  actionButtons: {
-    flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 40,
   },
   cancelButton: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
     width: 50,
     height: 50,
     borderRadius: 25,
@@ -80,16 +92,30 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
-  sendButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    overflow: 'hidden',
+  bottomActions: {
+    position: 'absolute',
+    bottom: 40,
+    left: 20,
+    right: 20,
+    gap: 16,
   },
-  sendButtonGradient: {
+  actionButton: {
+    borderRadius: 25,
+    overflow: 'hidden',
+    height: 50,
+  },
+  actionButtonGradient: {
     flex: 1,
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+  },
+  actionButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.white,
   },
 });
 

@@ -17,9 +17,12 @@ import { useFriends } from '../hooks/useFriends';
 import { useChats } from '../hooks/useChat';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { uploadMessageImage } from '../utils/imageUploader';
+import { simpleUploadMessageImage } from '../utils/simpleUploader';
+import { directUploadMessageImage } from '../utils/directUploader';
 
 const SendToFriendsScreen = ({ route, navigation }) => {
-  const { photoUri, isFromGallery = false } = route.params;
+  const { photoUri, isFromGallery = false, previousScreen, chatId } = route.params;
   const { friends, loading } = useFriends();
   const { createChat } = useChats();
   const { user } = useAuth();
@@ -39,55 +42,41 @@ const SendToFriendsScreen = ({ route, navigation }) => {
 
   const uploadImage = async (uri) => {
     try {
-      console.log('🔄 Starting image upload for URI:', uri);
+      console.log('🚀 Trying direct uploader (base64 method)...');
       
-      const response = await fetch(uri);
-      const blob = await response.blob();
+      // Try direct uploader first (most reliable for React Native)
+      const directResult = await directUploadMessageImage(uri, user.id, isFromGallery);
       
-      // Create unique filename with proper path structure: userId/snap_TIMESTAMP.jpg
-      const timestamp = Date.now();
-      const fileName = `snap_${timestamp}.jpg`;
-      const filePath = `${user.id}/${fileName}`;
-      
-      console.log('📁 Uploading to path:', filePath);
-      
-      const { data, error } = await supabase.storage
-        .from('media')
-        .upload(filePath, blob, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (error) {
-        console.error('❌ Storage upload error:', error);
-        throw error;
+      if (directResult.success) {
+        console.log('✅ Direct upload succeeded:', directResult);
+        return directResult.publicUrl;
       }
-
-      console.log('✅ Upload successful:', data);
-
-      // Generate public URL for the uploaded file
-      const { data: publicData } = supabase.storage
-        .from('media')
-        .getPublicUrl(filePath);
-
-      console.log('🔗 Generated public URL:', publicData.publicUrl);
-
-      // Verify the URL is accessible
-      try {
-        const testResponse = await fetch(publicData.publicUrl, { method: 'HEAD' });
-        if (!testResponse.ok) {
-          console.warn('⚠️ Public URL might not be accessible:', testResponse.status);
-        } else {
-          console.log('✅ Public URL verified as accessible');
-        }
-      } catch (testError) {
-        console.warn('⚠️ Could not verify public URL accessibility:', testError);
+      
+      console.warn('⚠️ Direct uploader failed, trying simple uploader...', directResult.error);
+      
+      // Fallback to simple uploader
+      const simpleResult = await simpleUploadMessageImage(uri, user.id, isFromGallery);
+      
+      if (simpleResult.success) {
+        console.log('✅ Simple upload succeeded:', simpleResult);
+        return simpleResult.publicUrl;
       }
-
-      return publicData.publicUrl;
+      
+      console.warn('⚠️ Simple uploader failed, trying robust uploader...', simpleResult.error);
+      
+      // Last resort: robust uploader
+      const robustResult = await uploadMessageImage(uri, user.id, isFromGallery);
+      
+      if (robustResult.success) {
+        console.log('✅ Robust upload succeeded:', robustResult);
+        return robustResult.publicUrl;
+      }
+      
+      throw new Error(`All uploaders failed. Direct: ${directResult.error}, Simple: ${simpleResult.error}, Robust: ${robustResult.error}`);
+      
     } catch (error) {
-      console.error('❌ Error uploading image:', error);
-      throw error; // Don't use fallback - we want to know if upload fails
+      console.error('❌ All upload methods failed:', error);
+      throw error;
     }
   };
 
@@ -99,10 +88,22 @@ const SendToFriendsScreen = ({ route, navigation }) => {
 
     setSending(true);
     try {
-      // Upload the image first
+      // Upload the image first - this MUST succeed before we proceed
       console.log('🚀 Starting photo send process...');
+      console.log('📂 Photo URI to upload:', photoUri);
+      
       const imageUrl = await uploadImage(photoUri);
       console.log('📸 Image uploaded successfully, URL:', imageUrl);
+      
+      // Validate the uploaded URL
+      if (!imageUrl || !imageUrl.startsWith('https://')) {
+        throw new Error(`Invalid upload result: ${imageUrl}`);
+      }
+      
+      console.log('✅ Upload validation passed, proceeding to send messages...');
+
+      let successCount = 0;
+      let lastChatId = null;
 
       // Send to each selected friend
       for (const friend of selectedFriends) {
@@ -124,7 +125,12 @@ const SendToFriendsScreen = ({ route, navigation }) => {
             chatId = chatData.id;
           }
           
-          // Send the image message
+          lastChatId = chatId;
+          
+          console.log(`📤 Sending message to friend ${friend.display_name} in chat ${chatId}`);
+          console.log(`📎 Using media URL: ${imageUrl}`);
+          
+          // Send the image message with the validated URL
           const { error } = await supabase
             .from('messages')
             .insert([
@@ -133,41 +139,67 @@ const SendToFriendsScreen = ({ route, navigation }) => {
                 sender_id: user.id,
                 content: isFromGallery ? 'Sent a photo from gallery' : 'Sent a snap',
                 message_type: 'image',
-                media_url: imageUrl,
+                media_url: imageUrl, // This is now guaranteed to be a proper HTTPS URL
                 disappear_after_seconds: isFromGallery ? null : 10,
                 max_views: isFromGallery ? null : 1,
               }
             ]);
 
           if (error) {
-            console.error('Error sending message:', error);
+            console.error(`❌ Error sending message to ${friend.display_name}:`, error);
             throw error;
           }
+
+          console.log(`✅ Message sent successfully to ${friend.display_name}`);
 
           // Update chat's last message timestamp
           await supabase
             .from('chats')
             .update({ last_message_at: new Date().toISOString() })
             .eq('id', chatId);
+            
+          successCount++;
         } catch (friendError) {
-          console.error(`Error sending to friend ${friend.id}:`, friendError);
+          console.error(`❌ Error sending to friend ${friend.display_name}:`, friendError);
           // Continue with other friends even if one fails
         }
       }
 
-      Alert.alert(
-        '📸 Sent!', 
-        `Photo sent to ${selectedFriends.length} friend${selectedFriends.length > 1 ? 's' : ''}!`,
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('MainTabs', { screen: 'Chat' })
-          }
-        ]
-      );
+      if (successCount > 0) {
+        Alert.alert(
+          '📸 Sent!', 
+          `Photo sent to ${successCount} of ${selectedFriends.length} friend${selectedFriends.length > 1 ? 's' : ''}!`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                if (lastChatId) {
+                  // If we came from a specific chat, go back to it
+                  navigation.navigate('MainTabs', { 
+                    screen: 'Chat', 
+                    params: { 
+                      screen: 'ChatRoom', 
+                      params: { chatId: lastChatId } 
+                    } 
+                  });
+                } else {
+                  // Otherwise go to chat list
+                  navigation.navigate('MainTabs', { screen: 'Chat' });
+                }
+              }
+            }
+          ]
+        );
+      } else {
+        throw new Error('Failed to send to any friends');
+      }
     } catch (error) {
-      console.error('Error sending photo:', error);
-      Alert.alert('Error', 'Failed to send photo. Please try again.');
+      console.error('❌ Error in send process:', error);
+      Alert.alert(
+        'Send Failed', 
+        `Failed to send photo: ${error.message}. Please try again.`,
+        [{ text: 'OK' }]
+      );
     } finally {
       setSending(false);
     }

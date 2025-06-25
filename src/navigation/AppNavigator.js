@@ -18,6 +18,7 @@ import ChatListScreen from '../screens/ChatListScreen';
 import ChatScreen from '../screens/ChatScreen';
 import StoriesScreen from '../screens/StoriesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 import FriendRequestsScreen from '../screens/FriendRequestsScreen';
 import LoadingScreen from '../screens/LoadingScreen';
 import SendToFriendsScreen from '../screens/SendToFriendsScreen';
@@ -134,6 +135,7 @@ const ProfileStack = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ProfileMain" component={ProfileScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="FriendRequests" component={FriendRequestsScreen} />
     </Stack.Navigator>
   );

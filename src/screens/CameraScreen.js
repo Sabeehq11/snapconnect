@@ -19,10 +19,18 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { colors, theme } from '../utils/colors';
 import PhotoPreview from '../components/PhotoPreview';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../context/AuthContext';
+import { useStories } from '../hooks/useStories';
+import { uploadStoryImage } from '../utils/imageUploader';
+import { simpleUploadStoryImage } from '../utils/simpleUploader';
+import { directUploadStoryImage } from '../utils/directUploader';
 
 const { width, height } = Dimensions.get('window');
 
-const CameraScreen = ({ navigation }) => {
+const CameraScreen = ({ navigation, route }) => {
+  const { user } = useAuth();
+  const { createStory } = useStories();
   const [facing, setFacing] = useState('front');
   const [flash, setFlash] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
@@ -166,13 +174,16 @@ const CameraScreen = ({ navigation }) => {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.9,
+        selectionLimit: 1,
       });
 
-      if (!result.canceled && result.assets[0]) {
+      console.log('Image picker result:', result);
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
         setSelectedImage(result.assets[0].uri);
         setShowImagePreview(true);
       }
@@ -182,9 +193,12 @@ const CameraScreen = ({ navigation }) => {
     }
   };
 
-  const handleSendPhoto = () => {
+  // Remove this function as options are now handled in PhotoPreview
+
+  const handleSendToFriends = () => {
     const photoUri = capturedPhoto || selectedImage;
     const isFromGallery = !!selectedImage;
+    const { chatId, chatName } = route.params || {};
     
     setShowPhotoPreview(false);
     setShowImagePreview(false);
@@ -193,8 +207,90 @@ const CameraScreen = ({ navigation }) => {
     
     navigation.navigate('SendToFriends', { 
       photoUri, 
-      isFromGallery 
+      isFromGallery,
+      previousScreen: 'Camera',
+      chatId, // Pass the chat ID if available
+      chatName // Pass the chat name if available
     });
+  };
+
+  const handlePostToStory = async () => {
+    const photoUri = capturedPhoto || selectedImage;
+    const isFromGallery = !!selectedImage;
+    
+    setShowPhotoPreview(false);
+    setShowImagePreview(false);
+    
+    try {
+      console.log('📖 Trying direct story uploader first...');
+      
+      // Try direct uploader first
+      const directResult = await directUploadStoryImage(photoUri, user.id, isFromGallery);
+      
+      if (directResult.success) {
+        console.log('✅ Direct story upload succeeded:', directResult);
+        
+        await createStory(
+          directResult.publicUrl,
+          'image',
+          isFromGallery ? 'Posted from gallery' : 'New story'
+        );
+
+        console.log('🎉 Story posted successfully!');
+        Alert.alert('📖 Story Posted!', 'Your story is now live for 24 hours!');
+        setCapturedPhoto(null);
+        setSelectedImage(null);
+        return;
+      }
+      
+      console.warn('⚠️ Direct story uploader failed, trying simple uploader...', directResult.error);
+      
+      // Fallback to simple uploader
+      const simpleResult = await simpleUploadStoryImage(photoUri, user.id, isFromGallery);
+      
+      if (simpleResult.success) {
+        console.log('✅ Simple story upload succeeded:', simpleResult);
+        
+        await createStory(
+          simpleResult.publicUrl,
+          'image',
+          isFromGallery ? 'Posted from gallery' : 'New story'
+        );
+
+        console.log('🎉 Story posted successfully!');
+        Alert.alert('📖 Story Posted!', 'Your story is now live for 24 hours!');
+        setCapturedPhoto(null);
+        setSelectedImage(null);
+        return;
+      }
+      
+      console.warn('⚠️ Simple story uploader failed, trying robust uploader...', simpleResult.error);
+      
+      // Last resort: robust uploader
+      const robustResult = await uploadStoryImage(photoUri, user.id, isFromGallery);
+      
+      if (!robustResult.success) {
+        throw new Error(`All story uploaders failed. Direct: ${directResult.error}, Simple: ${simpleResult.error}, Robust: ${robustResult.error}`);
+      }
+      
+      console.log('✅ Robust story upload completed:', robustResult);
+
+      // Create story using the hook with the validated URL
+      await createStory(
+        robustResult.publicUrl,
+        'image',
+        isFromGallery ? 'Posted from gallery' : 'New story'
+      );
+
+      console.log('🎉 Story posted successfully!');
+      Alert.alert('📖 Story Posted!', 'Your story is now live for 24 hours!');
+      setCapturedPhoto(null);
+      setSelectedImage(null);
+    } catch (error) {
+      console.error('❌ Error posting story:', error);
+      console.error('❌ Story context:', { photoUri, userId: user.id, isFromGallery });
+      Alert.alert('Error', `Failed to post story: ${error.message}`);
+    }
   };
 
   const handleCancelPhoto = () => {
@@ -342,7 +438,8 @@ const CameraScreen = ({ navigation }) => {
         {capturedPhoto && (
           <PhotoPreview
             photoUri={capturedPhoto}
-            onSend={handleSendPhoto}
+            onSendToFriends={handleSendToFriends}
+            onPostToStory={handlePostToStory}
             onCancel={handleCancelPhoto}
           />
         )}
@@ -357,11 +454,14 @@ const CameraScreen = ({ navigation }) => {
         {selectedImage && (
           <PhotoPreview
             photoUri={selectedImage}
-            onSend={handleSendPhoto}
+            onSendToFriends={handleSendToFriends}
+            onPostToStory={handlePostToStory}
             onCancel={handleCancelPhoto}
           />
         )}
       </Modal>
+
+
     </View>
   );
 };
@@ -541,6 +641,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.white,
   },
+
 });
 
 export default CameraScreen; 

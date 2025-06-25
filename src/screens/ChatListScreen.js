@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { useChats } from '../hooks/useChat';
 import { useFriends } from '../hooks/useFriends';
 import CreateChatModal from '../components/CreateChatModal';
+import CreateGroupChatModal from '../components/CreateGroupChatModal';
 import { supabase } from '../../lib/supabase';
 import { colors, theme } from '../utils/colors';
 import EmptyState from '../components/EmptyState';
@@ -27,6 +28,7 @@ const ChatListScreen = ({ navigation }) => {
   const { chats = [], loading } = useChats() || {};
   const { friends = [], refetchFriends } = useFriends() || {};
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showGroupModal, setShowGroupModal] = useState(false);
   const [activeTab, setActiveTab] = useState('chats');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -55,6 +57,11 @@ const ChatListScreen = ({ navigation }) => {
   };
 
   const getChatName = (chat) => {
+    // If it's a group chat, return the group name
+    if (chat.is_group_chat && chat.group_name) {
+      return chat.group_name;
+    }
+    
     // Find the other participant(s) in the chat
     const otherParticipants = chat.participants?.filter(p => p.id !== user?.id) || [];
     if (otherParticipants.length === 1) {
@@ -110,9 +117,15 @@ const ChatListScreen = ({ navigation }) => {
     const lastMessage = getLastMessage(item);
     const timestamp = formatTimestamp(item.last_message_at || item.created_at);
     const hasUnread = item.unread_count > 0;
+    const isGroupChat = item.is_group_chat;
     
     const handleChatPress = () => {
-      navigation.navigate('ChatRoom', { chatId: item.id, chatName });
+      navigation.navigate('ChatRoom', { 
+        chatId: item.id, 
+        chatName,
+        isGroupChat,
+        participants: item.participants 
+      });
     };
     
     return (
@@ -125,14 +138,18 @@ const ChatListScreen = ({ navigation }) => {
           {/* Avatar */}
           <View style={styles.avatarContainer}>
             <LinearGradient
-              colors={colors.gradients.primary}
+              colors={isGroupChat ? colors.gradients.accent : colors.gradients.primary}
               style={styles.avatar}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
-              <Text style={styles.avatarText}>
-                {chatName.charAt(0).toUpperCase()}
-              </Text>
+              {isGroupChat ? (
+                <Ionicons name="people" size={20} color={colors.white} />
+              ) : (
+                <Text style={styles.avatarText}>
+                  {chatName.charAt(0).toUpperCase()}
+                </Text>
+              )}
             </LinearGradient>
             <View style={styles.onlineIndicator} />
           </View>
@@ -244,20 +261,36 @@ const ChatListScreen = ({ navigation }) => {
         <GlassView style={styles.header} intensity="medium" tint="dark">
           <View style={styles.headerTop}>
             <Text style={styles.headerTitle}>Messages</Text>
-            <TouchableOpacity 
-              style={styles.newChatButton}
-              onPress={() => setShowCreateModal(true)}
-              activeOpacity={0.8}
-            >
-              <LinearGradient
-                colors={colors.gradients.accent}
-                style={styles.newChatGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+            <View style={styles.headerButtons}>
+              <TouchableOpacity 
+                style={styles.headerButton}
+                onPress={() => setShowGroupModal(true)}
+                activeOpacity={0.8}
               >
-                <Ionicons name="add" size={24} color={colors.white} />
-              </LinearGradient>
-            </TouchableOpacity>
+                <LinearGradient
+                  colors={colors.gradients.secondary}
+                  style={styles.headerButtonGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Ionicons name="people" size={20} color={colors.white} />
+                </LinearGradient>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.headerButton}
+                onPress={() => setShowCreateModal(true)}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={colors.gradients.accent}
+                  style={styles.headerButtonGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Ionicons name="add" size={20} color={colors.white} />
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Search Bar */}
@@ -384,6 +417,21 @@ const ChatListScreen = ({ navigation }) => {
             navigation.navigate('ChatRoom', { chatId: chat.id, chatName });
           }}
         />
+
+        <CreateGroupChatModal
+          visible={showGroupModal}
+          onClose={() => setShowGroupModal(false)}
+          onGroupCreated={(chat) => {
+            setShowGroupModal(false);
+            // Navigate to the new group chat
+            navigation.navigate('ChatRoom', { 
+              chatId: chat.id, 
+              chatName: chat.group_name,
+              isGroupChat: true,
+              participants: chat.participants 
+            });
+          }}
+        />
       </AnimatedHeroGradient>
     </SafeAreaView>
   );
@@ -405,18 +453,30 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.md,
     paddingTop: theme.spacing.lg,
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+  },
   headerTitle: {
     fontSize: theme.typography.fontSizes.xxl,
     fontWeight: theme.typography.fontWeights.bold,
     color: colors.textPrimary,
   },
-  newChatButton: {
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  headerButton: {
     borderRadius: theme.borderRadius.full,
     ...theme.shadows.glow,
   },
-  newChatGradient: {
-    width: 44,
-    height: 44,
+  headerButtonGradient: {
+    width: 36,
+    height: 36,
     borderRadius: theme.borderRadius.full,
     justifyContent: 'center',
     alignItems: 'center',

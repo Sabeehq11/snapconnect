@@ -16,18 +16,24 @@ import {
   Keyboard,
   StatusBar,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../hooks/useChat';
 import { useChats } from '../hooks/useChat';
 import { colors, theme } from '../utils/colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { supabase } from '../../lib/supabase';
+import ImageWithFallback from '../components/ImageWithFallback';
+import QuickDiagnosticsPanel from '../components/QuickDiagnosticsPanel';
+import { runFullCleanup } from '../utils/runCleanup';
 
 const { width, height } = Dimensions.get('window');
 
 const ChatScreen = ({ route, navigation }) => {
-  const { chatId, chatName } = route.params;
+  const { chatId, chatName, isGroupChat = false, participants = [] } = route.params;
   const { user } = useAuth();
   const { messages, loading, sendMessage } = useChat(chatId);
   const { markChatAsRead } = useChats();
@@ -35,6 +41,9 @@ const ChatScreen = ({ route, navigation }) => {
   const [viewingMessage, setViewingMessage] = useState(null);
   const [viewTimer, setViewTimer] = useState(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [imageLoadingStates, setImageLoadingStates] = useState({});
+  const [imageErrors, setImageErrors] = useState({});
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const flatListRef = useRef(null);
   const textInputRef = useRef(null);
@@ -52,13 +61,41 @@ const ChatScreen = ({ route, navigation }) => {
         color: colors.textPrimary,
         fontWeight: theme.typography.fontWeights.semibold,
       },
+      headerRight: () => isGroupChat ? (
+        <TouchableOpacity
+          style={{ marginRight: 16 }}
+          onPress={() => {
+            Alert.alert(
+              'Group Info',
+              `${chatName}\n${participants.length} members`,
+              [{ text: 'OK' }]
+            );
+          }}
+        >
+          <Ionicons name="information-circle-outline" size={24} color={colors.textPrimary} />
+        </TouchableOpacity>
+      ) : null,
     });
 
     // Mark chat as read when entering
     if (chatId) {
       markChatAsRead(chatId);
     }
-  }, [navigation, chatName, chatId, markChatAsRead]);
+  }, [navigation, chatName, chatId, markChatAsRead, isGroupChat, participants]);
+
+  // Run cleanup once when screen loads
+  useEffect(() => {
+    const runCleanupOnLoad = async () => {
+      try {
+        console.log('🧹 Running automatic cleanup on ChatScreen load...');
+        await runFullCleanup();
+      } catch (error) {
+        console.error('❌ Auto-cleanup failed:', error);
+      }
+    };
+
+    runCleanupOnLoad();
+  }, []); // Only run once when component mounts
 
   // Keyboard event listeners
   useEffect(() => {
@@ -163,6 +200,13 @@ const ChatScreen = ({ route, navigation }) => {
     }
   };
 
+  const handleCameraPress = () => {
+    navigation.navigate('MainTabs', { 
+      screen: 'Camera', 
+      params: { chatId, chatName }
+    });
+  };
+
   const handleViewMessage = async (message) => {
     if (message.sender_id === user.id) {
       // Users can always view their own messages
@@ -237,13 +281,76 @@ const ChatScreen = ({ route, navigation }) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  // Helper function to get proper public URL
+  const getImageUrl = async (mediaUrl, messageId) => {
+    try {
+      console.log('🖼️ Processing image URL for message:', messageId, 'URL:', mediaUrl);
+      
+      // If it's already a full URL, return as is
+      if (mediaUrl && (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://'))) {
+        console.log('✅ Using existing public URL:', mediaUrl);
+        return mediaUrl;
+      }
+      
+      // If it's a file path, generate public URL
+      if (mediaUrl && !mediaUrl.startsWith('http')) {
+        console.log('🔄 Generating public URL for file path:', mediaUrl);
+        const { data: publicData } = supabase.storage
+          .from('media')
+          .getPublicUrl(mediaUrl);
+        
+        console.log('🔗 Generated public URL:', publicData.publicUrl);
+        return publicData.publicUrl;
+      }
+      
+      console.warn('⚠️ Invalid media URL format:', mediaUrl);
+      return null;
+    } catch (error) {
+      console.error('❌ Error processing image URL:', error);
+      return null;
+    }
+  };
+
+  // Alternative direct URL builder
+  const buildDirectUrl = (mediaUrl) => {
+    if (!mediaUrl) return null;
+    
+    // If already a full URL, use it
+    if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
+      return mediaUrl;
+    }
+    
+    // Manually construct the public URL
+    // Format: https://YOUR_PROJECT.supabase.co/storage/v1/object/public/media/path
+    const supabaseUrl = supabase.supabaseUrl;
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/media/${mediaUrl}`;
+    console.log('🔨 Built direct URL:', publicUrl);
+    return publicUrl;
+  };
+
+
+
   const renderMessage = ({ item }) => {
-    const isOwnMessage = item.sender_id === user.id;
+    if (!item || !item.id) {
+      return null;
+    }
+    
+    const isOwnMessage = item.sender_id === user?.id;
     const isDisappeared = item.is_disappeared;
     const isImageMessage = item.message_type === 'image';
+    const isSystemMessage = item.message_type === 'system';
     
     if (isDisappeared && !isOwnMessage) {
       return null; // Don't show disappeared messages to other users
+    }
+
+    // System messages (like group creation notifications)
+    if (isSystemMessage) {
+      return (
+        <View style={styles.systemMessageContainer}>
+          <Text style={styles.systemMessageText}>{item.content}</Text>
+        </View>
+      );
     }
 
     return (
@@ -257,6 +364,13 @@ const ChatScreen = ({ route, navigation }) => {
         disabled={isOwnMessage}
         activeOpacity={0.8}
       >
+        {/* Show sender name in group chats for non-own messages */}
+        {isGroupChat && !isOwnMessage && (
+          <Text style={styles.senderName}>
+            {item.sender?.display_name || item.sender?.username || item.sender?.email || 'Unknown User'}
+          </Text>
+        )}
+        
         <LinearGradient
           colors={isOwnMessage ? colors.gradients.primary : colors.gradients.card}
           style={[
@@ -273,17 +387,20 @@ const ChatScreen = ({ route, navigation }) => {
             </Text>
           ) : isImageMessage ? (
             <View style={styles.imageMessageContent}>
-              <Image
-                source={{ uri: item.media_url }}
+              <ImageWithFallback
+                mediaUrl={item.media_url}
+                messageId={item.id}
                 style={styles.messageImage}
                 resizeMode="cover"
-              />
-              <View style={styles.imageOverlay}>
-                {!isOwnMessage && (
-                  <Text style={styles.tapToViewImage}>📸 Tap to view snap</Text>
-                )}
-                <Text style={styles.imageCaption}>{item.content}</Text>
-              </View>
+                onError={(error) => console.log('❌ Image failed for message:', item.id, error)}
+              >
+                <View style={styles.imageOverlay}>
+                  {!isOwnMessage && (
+                    <Text style={styles.tapToViewImage}>📸 Tap to view snap</Text>
+                  )}
+                  <Text style={styles.imageCaption}>{item.content}</Text>
+                </View>
+              </ImageWithFallback>
             </View>
           ) : (
             <>
@@ -335,9 +452,9 @@ const ChatScreen = ({ route, navigation }) => {
             {/* Messages List */}
             <FlatList
               ref={flatListRef}
-              data={messages}
+              data={messages || []}
               renderItem={renderMessage}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item?.id || Math.random().toString()}
               style={styles.messagesList}
               contentContainerStyle={[
                 styles.messagesContainer,
@@ -367,6 +484,13 @@ const ChatScreen = ({ route, navigation }) => {
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               >
+                <TouchableOpacity
+                  style={styles.cameraButton}
+                  onPress={handleCameraPress}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="camera" size={24} color={colors.primary} />
+                </TouchableOpacity>
                 <TextInput
                   ref={textInputRef}
                   style={styles.textInput}
@@ -423,24 +547,27 @@ const ChatScreen = ({ route, navigation }) => {
               >
                 {viewingMessage?.message_type === 'image' ? (
                   <View style={styles.fullScreenImageContainer}>
-                    <Image
-                      source={{ uri: viewingMessage.media_url }}
+                    <ImageWithFallback
+                      mediaUrl={viewingMessage.media_url}
+                      messageId={viewingMessage.id}
                       style={styles.fullScreenImage}
                       resizeMode="contain"
-                    />
-                    <View style={styles.fullScreenImageOverlay}>
-                      <Text style={styles.fullScreenImageCaption}>
-                        {viewingMessage.content}
-                      </Text>
-                      <Text style={styles.fullScreenSender}>
-                        From: {viewingMessage?.sender?.display_name || 'Unknown'}
-                      </Text>
-                      {viewingMessage.disappear_after_seconds && (
-                        <Text style={styles.disappearWarning}>
-                          This snap will disappear in {viewingMessage.disappear_after_seconds} seconds
+                      showFallback={true}
+                    >
+                      <View style={styles.fullScreenImageOverlay}>
+                        <Text style={styles.fullScreenImageCaption}>
+                          {viewingMessage.content}
                         </Text>
-                      )}
-                    </View>
+                        <Text style={styles.fullScreenSender}>
+                          From: {viewingMessage?.sender?.display_name || 'Unknown'}
+                        </Text>
+                        {viewingMessage.disappear_after_seconds && (
+                          <Text style={styles.disappearWarning}>
+                            This snap will disappear in {viewingMessage.disappear_after_seconds} seconds
+                          </Text>
+                        )}
+                      </View>
+                    </ImageWithFallback>
                   </View>
                 ) : (
                   <LinearGradient
@@ -464,6 +591,19 @@ const ChatScreen = ({ route, navigation }) => {
             </LinearGradient>
           </Animated.View>
         </Modal>
+
+        {/* Diagnostic Panel */}
+        {showDiagnostics && (
+          <QuickDiagnosticsPanel onClose={() => setShowDiagnostics(false)} />
+        )}
+
+        {/* Diagnostic Button - Temporary for debugging */}
+        <TouchableOpacity 
+          style={styles.diagnosticButton}
+          onPress={() => setShowDiagnostics(true)}
+        >
+          <Text style={styles.diagnosticButtonText}>🔧</Text>
+        </TouchableOpacity>
       </SafeAreaView>
     </>
   );
@@ -598,6 +738,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
     textAlign: 'center',
   },
+  cameraButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginRight: theme.spacing.sm,
+  },
   messageViewer: {
     flex: 1,
   },
@@ -702,6 +851,67 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: theme.spacing.sm,
     fontWeight: theme.typography.fontWeights.medium,
+  },
+  imageError: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageErrorText: {
+    color: colors.error,
+    fontSize: theme.typography.fontSizes.xl,
+    marginBottom: theme.spacing.xs,
+  },
+  imageErrorSubtext: {
+    color: colors.textMuted,
+    fontSize: theme.typography.fontSizes.sm,
+  },
+  imageLoading: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageLoadingText: {
+    color: colors.primary,
+    fontSize: theme.typography.fontSizes.sm,
+  },
+  // Group chat styles
+  senderName: {
+    fontSize: theme.typography.fontSizes.xs,
+    color: colors.textSecondary,
+    marginBottom: 4,
+    marginLeft: 8,
+    fontWeight: theme.typography.fontWeights.medium,
+  },
+  systemMessageContainer: {
+    alignItems: 'center',
+    marginVertical: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+  },
+  systemMessageText: {
+    fontSize: theme.typography.fontSizes.sm,
+    color: colors.textMuted,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.lg,
+  },
+  // Diagnostic button styles
+  diagnosticButton: {
+    position: 'absolute',
+    top: 100,
+    right: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.error,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+    ...theme.shadows.lg,
+  },
+  diagnosticButtonText: {
+    fontSize: 24,
   },
 });
 

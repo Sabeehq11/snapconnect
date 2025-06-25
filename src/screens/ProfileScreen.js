@@ -124,6 +124,16 @@ const ProfileScreen = ({ navigation }) => {
       color: colors.secondary,
     },
     { 
+      icon: 'mail',
+      title: 'Friend Requests', 
+      subtitle: receivedRequests?.length > 0 
+        ? `${receivedRequests.length} pending request${receivedRequests.length !== 1 ? 's' : ''}` 
+        : 'No pending requests',
+      onPress: () => navigation.navigate('FriendRequests'),
+      color: receivedRequests?.length > 0 ? colors.error : colors.accent,
+      badge: receivedRequests?.length || 0,
+    },
+    { 
       icon: 'camera',
       title: 'Memories', 
       subtitle: 'Your saved snaps',
@@ -134,7 +144,7 @@ const ProfileScreen = ({ navigation }) => {
       icon: 'settings',
       title: 'Settings', 
       subtitle: 'App preferences',
-      onPress: () => {},
+      onPress: () => navigation.navigate('Settings'),
       color: colors.textSecondary,
     },
   ];
@@ -220,6 +230,13 @@ const ProfileScreen = ({ navigation }) => {
                   <Text style={styles.menuSubtitle}>{item?.subtitle || 'Loading...'}</Text>
                 </View>
                 <View style={styles.menuArrow}>
+                  {item.badge > 0 && (
+                    <View style={styles.menuBadge}>
+                      <Text style={styles.menuBadgeText}>
+                        {item.badge > 99 ? '99+' : item.badge}
+                      </Text>
+                    </View>
+                  )}
                   <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
                 </View>
               </View>
@@ -491,7 +508,24 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.6)',
   },
   menuArrow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginLeft: 8,
+  },
+  menuBadge: {
+    backgroundColor: colors.error,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    marginRight: 8,
+  },
+  menuBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.white,
   },
   friendRequestsCard: {
     marginHorizontal: 20,

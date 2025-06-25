@@ -9,106 +9,64 @@ import {
   Dimensions,
   ScrollView,
   Image,
+  Modal,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { colors, theme } from '../utils/colors';
+import { useStories } from '../hooks/useStories';
+import ImageWithFallback from '../components/ImageWithFallback';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
-const StoriesScreen = () => {
-  const [stories, setStories] = useState([]);
-  const [spotlightStories, setSpotlightStories] = useState([]);
-  const [publicStories, setPublicStories] = useState([]);
+const StoriesScreen = ({ navigation }) => {
+  const [viewingStory, setViewingStory] = useState(null);
   const { user } = useAuth();
+  const { stories, friendsStories, loading, fetchStories, markStoryAsViewed } = useStories();
 
-  // Ensure arrays are never undefined
-  const safeStories = stories || [];
-  const safeSpotlightStories = spotlightStories || [];
-  const safePublicStories = publicStories || [];
+  // Stories are now managed by the hook, no need for local fetching
 
-  // Mock data for stories
-  useEffect(() => {
-    setStories([
-      {
-        id: 'my-story',
-        user: 'My Story',
-        isOwnStory: true,
-        hasStory: false,
-        avatar: null,
-      },
-      {
-        id: '2',
-        user: 'Daniel',
-        isOwnStory: false,
-        hasStory: true,
-        avatar: null,
-      },
-      {
-        id: '3',
-        user: 'Olivia',
-        isOwnStory: false,
-        hasStory: true,
-        avatar: null,
-      },
-      {
-        id: '4',
-        user: 'James',
-        isOwnStory: false,
-        hasStory: true,
-        avatar: null,
-      },
-    ]);
+  const handleStoryPress = async (storyItem) => {
+    if (storyItem.isOwnStory && (!storyItem.stories || storyItem.stories.length === 0)) {
+      // Navigate to camera to create story
+      navigation.navigate('Camera');
+      return;
+    }
 
-    setSpotlightStories([
-      {
-        id: '1',
-        title: 'Campus Life',
-        subtitle: 'Recent highlights',
-        image: null,
-        type: 'recent',
-      },
-      {
-        id: '2',
-        title: 'Public',
-        subtitle: 'Popular stories',
-        image: null,
-        type: 'public',
-      },
-    ]);
+    if (storyItem.stories && storyItem.stories.length > 0) {
+      const firstStory = storyItem.stories[0];
+      setViewingStory({
+        ...firstStory,
+        userName: storyItem.user,
+        userAvatar: storyItem.avatar,
+        isOwnStory: storyItem.isOwnStory
+      });
 
-    setPublicStories([
-      {
-        id: '1',
-        title: 'Study Session',
-        subtitle: 'Lorem ipsum',
-        image: null,
-        user: 'Emma',
-      },
-      {
-        id: '2',
-        title: 'Campus Event',
-        subtitle: 'Lorem ipsum',
-        image: null,
-        user: 'Alex',
-      },
-      {
-        id: '3',
-        title: 'Coffee Break',
-        subtitle: 'Lorem ipsum',
-        image: null,
-        user: 'Sarah',
-      },
-    ]);
-  }, []);
+      // Mark story as viewed if not own story
+      if (!storyItem.isOwnStory && !firstStory.views.includes(user.id)) {
+        await markStoryAsViewed(firstStory.id);
+      }
+    }
+  };
+
+  // markStoryAsViewed is now provided by the hook
+
+  const closeStoryViewer = () => {
+    setViewingStory(null);
+  };
 
   const renderStoryItem = ({ item }) => (
-    <TouchableOpacity style={styles.storyItem} activeOpacity={0.7}>
+    <TouchableOpacity 
+      style={styles.storyItem} 
+      activeOpacity={0.7}
+      onPress={() => handleStoryPress(item)}
+    >
       <View style={styles.storyAvatarContainer}>
         <LinearGradient
           colors={item?.isOwnStory 
-            ? (colors.gradients?.primary || ['#6366F1', '#8B5CF6'])
+            ? (item.hasStory ? colors.gradients?.primary || ['#6366F1', '#8B5CF6'] : ['#666', '#888'])
             : item?.hasStory 
               ? (colors.gradients?.snapGradient || ['#6366F1', '#8B5CF6', '#3B82F6'])
               : (colors.gradients?.accent || ['#8B5CF6', '#3B82F6'])
@@ -120,8 +78,10 @@ const StoriesScreen = () => {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          {item.isOwnStory ? (
+          {item.isOwnStory && !item.hasStory ? (
             <Ionicons name="add" size={24} color={colors.white} />
+          ) : item.avatar ? (
+            <Image source={{ uri: item.avatar }} style={styles.avatarImage} />
           ) : (
             <Text style={styles.storyAvatarText}>
               {item.user.charAt(0).toUpperCase()}
@@ -132,51 +92,6 @@ const StoriesScreen = () => {
       <Text style={styles.storyUserName} numberOfLines={1}>
         {item.user}
       </Text>
-    </TouchableOpacity>
-  );
-
-  const renderSpotlightCard = (item, index) => (
-    <TouchableOpacity 
-      key={item.id} 
-      style={[styles.spotlightCard, index === 1 && styles.spotlightCardRight]}
-      activeOpacity={0.8}
-    >
-      <LinearGradient
-        colors={item?.type === 'recent' 
-          ? ['#FF6B6B', '#FF8E8E'] 
-          : ['#4ECDC4', '#44A08D']
-        }
-        style={styles.spotlightGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.spotlightContent}>
-          <Text style={styles.spotlightTitle}>{item.title}</Text>
-          <Text style={styles.spotlightSubtitle}>{item.subtitle}</Text>
-        </View>
-      </LinearGradient>
-    </TouchableOpacity>
-  );
-
-  const renderPublicStoryItem = ({ item }) => (
-    <TouchableOpacity style={styles.publicStoryItem} activeOpacity={0.7}>
-              <View style={styles.publicStoryCard}>
-          <View style={styles.publicStoryImageContainer}>
-            <LinearGradient
-              colors={colors.gradients?.primary || ['#6366F1', '#8B5CF6']}
-              style={styles.publicStoryImage}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-            <Ionicons name="image" size={32} color={colors.white} />
-          </LinearGradient>
-        </View>
-        <View style={styles.publicStoryInfo}>
-          <Text style={styles.publicStoryTitle}>{item?.title || 'Story'}</Text>
-          <Text style={styles.publicStorySubtitle}>{item?.subtitle || 'Loading...'}</Text>
-          <Text style={styles.publicStoryUser}>by {item?.user || 'User'}</Text>
-        </View>
-      </View>
     </TouchableOpacity>
   );
 
@@ -194,37 +109,140 @@ const StoriesScreen = () => {
         {/* Stories Row */}
         <View style={styles.storiesSection}>
           <FlatList
-            data={safeStories}
+            data={stories}
             renderItem={renderStoryItem}
             keyExtractor={(item) => item?.id || 'story'}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.storiesContainer}
+            refreshing={loading}
+            onRefresh={fetchStories}
           />
         </View>
 
-        {/* Spotlight Section */}
-        <View style={styles.spotlightSection}>
-          <Text style={styles.sectionTitle}>Spotlight</Text>
-          <View style={styles.spotlightContainer}>
-            {safeSpotlightStories.map((item, index) => renderSpotlightCard(item, index))}
+        {/* Recent Friends Stories */}
+        {friendsStories.length > 0 && (
+          <View style={styles.recentStoriesSection}>
+            <Text style={styles.sectionTitle}>Recent Stories</Text>
+            <FlatList
+              data={friendsStories.slice(0, 6)}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.recentStoryItem}
+                  onPress={() => handleStoryPress({
+                    ...item,
+                    user: item.users.display_name || item.users.username,
+                    isOwnStory: false,
+                    hasStory: true,
+                    stories: [item],
+                    avatar: item.users.photo_url
+                  })}
+                >
+                  <ImageWithFallback
+                    mediaUrl={item.media_url}
+                    messageId={item.id}
+                    style={styles.recentStoryImage}
+                    resizeMode="cover"
+                    showFallback={true}
+                  />
+                  <Text style={styles.recentStoryUser}>
+                    {item.users.display_name || item.users.username}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              keyExtractor={(item) => item.id}
+              numColumns={2}
+              columnWrapperStyle={styles.recentStoriesRow}
+              scrollEnabled={false}
+            />
           </View>
-        </View>
+        )}
 
-        {/* Public Stories Section */}
-        <View style={styles.publicStoriesSection}>
-          <Text style={styles.sectionTitle}>Public Stories</Text>
-          <FlatList
-            data={safePublicStories}
-            renderItem={renderPublicStoryItem}
-            keyExtractor={(item) => item?.id || 'public-story'}
-            numColumns={2}
-            columnWrapperStyle={styles.publicStoriesRow}
-            contentContainerStyle={styles.publicStoriesContainer}
-            scrollEnabled={false}
-          />
-        </View>
+        {/* Empty State */}
+        {stories.length <= 1 && !loading && (
+          <View style={styles.emptyState}>
+            <Ionicons name="camera-outline" size={64} color={colors.textSecondary} />
+            <Text style={styles.emptyStateTitle}>No Stories Yet</Text>
+            <Text style={styles.emptyStateText}>
+              Add friends and start sharing your moments!
+            </Text>
+          </View>
+        )}
       </ScrollView>
+
+      {/* Story Viewer Modal */}
+      <Modal
+        visible={!!viewingStory}
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closeStoryViewer}
+      >
+        {viewingStory && (
+          <View style={styles.storyViewer}>
+            <TouchableOpacity 
+              style={styles.storyTouchArea}
+              onPress={closeStoryViewer}
+              activeOpacity={1}
+            >
+              <ImageWithFallback
+                mediaUrl={viewingStory.media_url}
+                messageId={viewingStory.id || 'story'}
+                style={styles.fullScreenStory}
+                resizeMode="contain"
+                showFallback={true}
+              />
+            </TouchableOpacity>
+            
+            {/* Story Header */}
+            <View style={styles.storyHeader}>
+              <View style={styles.storyUserInfo}>
+                {viewingStory.userAvatar ? (
+                  <Image source={{ uri: viewingStory.userAvatar }} style={styles.storyUserAvatar} />
+                ) : (
+                  <View style={styles.storyUserAvatarPlaceholder}>
+                    <Text style={styles.storyUserAvatarText}>
+                      {viewingStory.userName.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <Text style={styles.storyUserName}>{viewingStory.userName}</Text>
+              </View>
+              <TouchableOpacity onPress={closeStoryViewer} style={styles.closeButton}>
+                <Ionicons name="close" size={28} color={colors.white} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Center Close Button */}
+            <TouchableOpacity onPress={closeStoryViewer} style={styles.centerCloseButton}>
+              <View style={styles.centerCloseButtonBackground}>
+                <Ionicons name="close" size={24} color={colors.white} />
+              </View>
+            </TouchableOpacity>
+
+            {/* Story Caption */}
+            {viewingStory.caption && (
+              <View style={styles.storyCaption}>
+                <Text style={styles.storyCaptionText}>{viewingStory.caption}</Text>
+              </View>
+            )}
+
+            {/* Story Footer */}
+            <View style={styles.storyFooter}>
+              <Text style={styles.storyTime}>
+                {new Date(viewingStory.created_at).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </Text>
+              {viewingStory.views && (
+                <Text style={styles.storyViews}>
+                  👁️ {viewingStory.views.length} view{viewingStory.views.length !== 1 ? 's' : ''}
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -295,102 +313,155 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
   },
-  spotlightSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: colors.white,
     marginBottom: 16,
   },
-  spotlightContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  spotlightCard: {
-    flex: 1,
-    height: 120,
-    borderRadius: 16,
-    overflow: 'hidden',
-    ...theme.shadows.md,
-  },
-  spotlightCardRight: {
-    marginLeft: 0,
-  },
-  spotlightGradient: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    padding: 16,
-  },
-  spotlightContent: {
-    alignItems: 'flex-start',
-  },
-  spotlightTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.white,
-    marginBottom: 4,
-    textShadowColor: 'rgba(0, 0, 0, 0.7)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  spotlightSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.95)',
-    textShadowColor: 'rgba(0, 0, 0, 0.7)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  publicStoriesSection: {
+  recentStoriesSection: {
     paddingHorizontal: 20,
-    paddingBottom: 80,
+    paddingBottom: 20,
   },
-  publicStoriesContainer: {
-    gap: 12,
-  },
-  publicStoriesRow: {
+  recentStoriesRow: {
     justifyContent: 'space-between',
     gap: 12,
   },
-  publicStoryItem: {
+  recentStoryItem: {
     flex: 1,
     marginBottom: 12,
   },
-  publicStoryCard: {
-    borderRadius: 12,
-    padding: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  publicStoryImageContainer: {
-    marginBottom: 12,
-  },
-  publicStoryImage: {
+  recentStoryImage: {
     width: '100%',
     height: 100,
     borderRadius: 8,
+  },
+  recentStoryUser: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.white,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  emptyState: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  publicStoryInfo: {
-    gap: 2,
+  emptyStateTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.white,
+    marginBottom: 16,
   },
-  publicStoryTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+  emptyStateText: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+  },
+  storyViewer: {
+    flex: 1,
+    backgroundColor: 'black',
+  },
+  storyTouchArea: {
+    flex: 1,
+  },
+  fullScreenStory: {
+    flex: 1,
+  },
+     storyHeader: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     justifyContent: 'space-between',
+     padding: 16,
+     position: 'absolute',
+     top: 0,
+     left: 0,
+     right: 0,
+     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+   },
+      closeButton: {
+     padding: 12,
+     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+     borderRadius: 20,
+   },
+   centerCloseButton: {
+     position: 'absolute',
+     bottom: 120,
+     alignSelf: 'center',
+     zIndex: 10,
+   },
+   centerCloseButtonBackground: {
+     backgroundColor: 'rgba(0, 0, 0, 0.7)',
+     borderRadius: 30,
+     padding: 12,
+     shadowColor: '#000',
+     shadowOffset: {
+       width: 0,
+       height: 2,
+     },
+     shadowOpacity: 0.25,
+     shadowRadius: 3.84,
+     elevation: 5,
+   },
+  storyUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  storyUserAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  storyUserAvatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  storyUserAvatarText: {
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.white,
   },
-  publicStorySubtitle: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
+     storyCaption: {
+     position: 'absolute',
+     bottom: 60,
+     left: 0,
+     right: 0,
+     padding: 16,
+     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+   },
+  storyCaptionText: {
+    fontSize: 14,
+    color: colors.white,
   },
-  publicStoryUser: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.6)',
-    marginTop: 4,
+     storyFooter: {
+     flexDirection: 'row',
+     justifyContent: 'space-between',
+     alignItems: 'center',
+     padding: 16,
+     position: 'absolute',
+     bottom: 0,
+     left: 0,
+     right: 0,
+     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+   },
+  storyTime: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  storyViews: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
 });
 
