@@ -11,6 +11,7 @@ import {
   Image,
   Modal,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,8 +24,10 @@ const { width, height } = Dimensions.get('window');
 
 const StoriesScreen = ({ navigation }) => {
   const [viewingStory, setViewingStory] = useState(null);
+  const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
+  const [storyGroup, setStoryGroup] = useState([]);
   const { user } = useAuth();
-  const { stories, friendsStories, loading, fetchStories, markStoryAsViewed } = useStories();
+  const { stories, friendsStories, loading, fetchStories, markStoryAsViewed, deleteStory } = useStories();
 
   // Stories are now managed by the hook, no need for local fetching
 
@@ -36,18 +39,71 @@ const StoriesScreen = ({ navigation }) => {
     }
 
     if (storyItem.stories && storyItem.stories.length > 0) {
+      // Set up story group for navigation
+      setStoryGroup(storyItem.stories);
+      setCurrentStoryIndex(0);
+      
       const firstStory = storyItem.stories[0];
       setViewingStory({
         ...firstStory,
         userName: storyItem.user,
         userAvatar: storyItem.avatar,
-        isOwnStory: storyItem.isOwnStory
+        isOwnStory: storyItem.isOwnStory,
+        totalStories: storyItem.stories.length
       });
 
       // Mark story as viewed if not own story
-      if (!storyItem.isOwnStory && !firstStory.views.includes(user.id)) {
+      if (!storyItem.isOwnStory && !firstStory.views?.includes(user.id)) {
         await markStoryAsViewed(firstStory.id);
       }
+    }
+  };
+
+  const handleDeleteStory = async (storyId) => {
+    try {
+      Alert.alert(
+        'Delete Story',
+        'Are you sure you want to delete this story?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              await deleteStory(storyId);
+              closeStoryViewer();
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to delete story');
+    }
+  };
+
+  const navigateStory = (direction) => {
+    if (storyGroup.length <= 1) return;
+    
+    let newIndex;
+    if (direction === 'next') {
+      newIndex = currentStoryIndex < storyGroup.length - 1 ? currentStoryIndex + 1 : 0;
+    } else {
+      newIndex = currentStoryIndex > 0 ? currentStoryIndex - 1 : storyGroup.length - 1;
+    }
+    
+    setCurrentStoryIndex(newIndex);
+    const story = storyGroup[newIndex];
+    setViewingStory({
+      ...story,
+      userName: viewingStory.userName,
+      userAvatar: viewingStory.userAvatar,
+      isOwnStory: viewingStory.isOwnStory,
+      totalStories: storyGroup.length
+    });
+    
+    // Mark as viewed if not own story
+    if (!viewingStory.isOwnStory && !story.views?.includes(user.id)) {
+      markStoryAsViewed(story.id);
     }
   };
 
@@ -55,7 +111,25 @@ const StoriesScreen = ({ navigation }) => {
 
   const closeStoryViewer = () => {
     setViewingStory(null);
+    setStoryGroup([]);
+    setCurrentStoryIndex(0);
   };
+
+  // Handle back button press when viewing story
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        if (viewingStory) {
+          closeStoryViewer();
+          return true; // Prevent default back action
+        }
+        return false; // Allow default back action
+      }
+    );
+
+    return () => backHandler.remove();
+  }, [viewingStory]);
 
   const renderStoryItem = ({ item }) => (
     <TouchableOpacity 
@@ -120,43 +194,7 @@ const StoriesScreen = ({ navigation }) => {
           />
         </View>
 
-        {/* Recent Friends Stories */}
-        {friendsStories.length > 0 && (
-          <View style={styles.recentStoriesSection}>
-            <Text style={styles.sectionTitle}>Recent Stories</Text>
-            <FlatList
-              data={friendsStories.slice(0, 6)}
-              renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.recentStoryItem}
-                  onPress={() => handleStoryPress({
-                    ...item,
-                    user: item.users.display_name || item.users.username,
-                    isOwnStory: false,
-                    hasStory: true,
-                    stories: [item],
-                    avatar: item.users.photo_url
-                  })}
-                >
-                  <ImageWithFallback
-                    mediaUrl={item.media_url}
-                    messageId={item.id}
-                    style={styles.recentStoryImage}
-                    resizeMode="cover"
-                    showFallback={true}
-                  />
-                  <Text style={styles.recentStoryUser}>
-                    {item.users.display_name || item.users.username}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              keyExtractor={(item) => item.id}
-              numColumns={2}
-              columnWrapperStyle={styles.recentStoriesRow}
-              scrollEnabled={false}
-            />
-          </View>
-        )}
+
 
         {/* Empty State */}
         {stories.length <= 1 && !loading && (
@@ -179,19 +217,41 @@ const StoriesScreen = ({ navigation }) => {
       >
         {viewingStory && (
           <View style={styles.storyViewer}>
+            {/* Story Progress Indicators */}
+            {storyGroup.length > 1 && (
+              <View style={styles.storyProgressContainer}>
+                {(storyGroup || []).map((_, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.storyProgressBar,
+                      index === currentStoryIndex && styles.activeProgressBar
+                    ]}
+                  />
+                ))}
+              </View>
+            )}
+            
+            {/* Navigation Areas */}
             <TouchableOpacity 
-              style={styles.storyTouchArea}
-              onPress={closeStoryViewer}
+              style={[styles.storyTouchArea, styles.leftTouchArea]}
+              onPress={() => navigateStory('prev')}
               activeOpacity={1}
-            >
-              <ImageWithFallback
-                mediaUrl={viewingStory.media_url}
-                messageId={viewingStory.id || 'story'}
-                style={styles.fullScreenStory}
-                resizeMode="contain"
-                showFallback={true}
-              />
-            </TouchableOpacity>
+            />
+            
+            <TouchableOpacity 
+              style={[styles.storyTouchArea, styles.rightTouchArea]}
+              onPress={() => navigateStory('next')}
+              activeOpacity={1}
+            />
+            
+            <ImageWithFallback
+              mediaUrl={viewingStory.media_url}
+              messageId={viewingStory.id || 'story'}
+              style={styles.fullScreenStory}
+              resizeMode="contain"
+              showFallback={true}
+            />
             
             {/* Story Header */}
             <View style={styles.storyHeader}>
@@ -205,17 +265,46 @@ const StoriesScreen = ({ navigation }) => {
                     </Text>
                   </View>
                 )}
-                <Text style={styles.storyUserName}>{viewingStory.userName}</Text>
+                <View style={styles.storyHeaderText}>
+                  <Text style={styles.storyUserName}>{viewingStory.userName}</Text>
+                  {viewingStory.totalStories > 1 && (
+                    <Text style={styles.storyCounter}>
+                      {currentStoryIndex + 1} of {viewingStory.totalStories}
+                    </Text>
+                  )}
+                </View>
               </View>
-              <TouchableOpacity onPress={closeStoryViewer} style={styles.closeButton}>
-                <Ionicons name="close" size={28} color={colors.white} />
-              </TouchableOpacity>
             </View>
 
-            {/* Center Close Button */}
-            <TouchableOpacity onPress={closeStoryViewer} style={styles.centerCloseButton}>
-              <View style={styles.centerCloseButtonBackground}>
-                <Ionicons name="close" size={24} color={colors.white} />
+            {/* Side Control Panel */}
+            <View style={styles.sideControlPanel}>
+              <TouchableOpacity 
+                onPress={closeStoryViewer} 
+                style={styles.sideControlButton}
+              >
+                <Ionicons name="close" size={28} color={colors.white} />
+              </TouchableOpacity>
+              
+              {/* Delete Button - Only for own stories */}
+              {viewingStory.isOwnStory && (
+                <TouchableOpacity 
+                  onPress={() => handleDeleteStory(viewingStory.id)} 
+                  style={[styles.sideControlButton, styles.deleteControlButton]}
+                >
+                  <Ionicons name="trash" size={24} color={colors.white} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Bottom Exit Button */}
+            <TouchableOpacity 
+              style={styles.bottomExitButton}
+              onPress={closeStoryViewer}
+              activeOpacity={0.8}
+            >
+              <View style={styles.bottomExitButtonBackground}>
+                <Ionicons name="chevron-down" size={24} color={colors.white} />
+                <Text style={styles.bottomExitText}>Tap to exit</Text>
               </View>
             </TouchableOpacity>
 
@@ -313,36 +402,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.white,
-    marginBottom: 16,
-  },
-  recentStoriesSection: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  recentStoriesRow: {
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  recentStoryItem: {
-    flex: 1,
-    marginBottom: 12,
-  },
-  recentStoryImage: {
-    width: '100%',
-    height: 100,
-    borderRadius: 8,
-  },
-  recentStoryUser: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.white,
-    textAlign: 'center',
-    marginTop: 4,
-  },
+
   emptyState: {
     flex: 1,
     justifyContent: 'center',
@@ -363,47 +423,65 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'black',
   },
-  storyTouchArea: {
+  storyProgressContainer: {
+    position: 'absolute',
+    top: 50,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    gap: 4,
+    zIndex: 10,
+  },
+  storyProgressBar: {
     flex: 1,
+    height: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 1.5,
+  },
+  activeProgressBar: {
+    backgroundColor: colors.white,
+  },
+  storyTouchArea: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: '50%',
+    zIndex: 5,
+  },
+  leftTouchArea: {
+    left: 0,
+  },
+  rightTouchArea: {
+    right: 0,
   },
   fullScreenStory: {
-    flex: 1,
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
   },
-     storyHeader: {
-     flexDirection: 'row',
-     alignItems: 'center',
-     justifyContent: 'space-between',
-     padding: 16,
-     position: 'absolute',
-     top: 0,
-     left: 0,
-     right: 0,
-     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-   },
-      closeButton: {
-     padding: 12,
-     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-     borderRadius: 20,
-   },
-   centerCloseButton: {
-     position: 'absolute',
-     bottom: 120,
-     alignSelf: 'center',
-     zIndex: 10,
-   },
-   centerCloseButtonBackground: {
-     backgroundColor: 'rgba(0, 0, 0, 0.7)',
-     borderRadius: 30,
-     padding: 12,
-     shadowColor: '#000',
-     shadowOffset: {
-       width: 0,
-       height: 2,
-     },
-     shadowOpacity: 0.25,
-     shadowRadius: 3.84,
-     elevation: 5,
-   },
+  storyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 10,
+  },
+  storyHeaderText: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  storyCounter: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  deleteControlButton: {
+    backgroundColor: 'rgba(220, 38, 38, 0.8)',
+  },
   storyUserInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -427,29 +505,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.white,
   },
-     storyCaption: {
-     position: 'absolute',
-     bottom: 60,
-     left: 0,
-     right: 0,
-     padding: 16,
-     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-   },
+  storyCaption: {
+    position: 'absolute',
+    bottom: 60,
+    left: 0,
+    right: 0,
+    padding: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
   storyCaptionText: {
     fontSize: 14,
     color: colors.white,
   },
-     storyFooter: {
-     flexDirection: 'row',
-     justifyContent: 'space-between',
-     alignItems: 'center',
-     padding: 16,
-     position: 'absolute',
-     bottom: 0,
-     left: 0,
-     right: 0,
-     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-   },
+  storyFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
   storyTime: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.8)',
@@ -463,6 +541,62 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
   },
+  sideControlPanel: {
+    position: 'absolute',
+    right: 16,
+    top: '50%',
+    transform: [{ translateY: -50 }],
+    flexDirection: 'column',
+    gap: 16,
+    zIndex: 10,
+  },
+  sideControlButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  bottomExitButton: {
+    position: 'absolute',
+    bottom: 120,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  bottomExitButtonBackground: {
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  bottomExitText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  
 });
 
 export default StoriesScreen; 

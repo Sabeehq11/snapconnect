@@ -17,9 +17,7 @@ import { useFriends } from '../hooks/useFriends';
 import { useChats } from '../hooks/useChat';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { uploadMessageImage } from '../utils/imageUploader';
-import { simpleUploadMessageImage } from '../utils/simpleUploader';
-import { directUploadMessageImage } from '../utils/directUploader';
+import { uploadChatImage } from '../utils/imageUploader';
 
 const SendToFriendsScreen = ({ route, navigation }) => {
   const { photoUri, isFromGallery = false, previousScreen, chatId } = route.params;
@@ -42,40 +40,20 @@ const SendToFriendsScreen = ({ route, navigation }) => {
 
   const uploadImage = async (uri) => {
     try {
-      console.log('🚀 Trying direct uploader (base64 method)...');
+      console.log('🚀 Uploading chat image...');
       
-      // Try direct uploader first (most reliable for React Native)
-      const directResult = await directUploadMessageImage(uri, user.id, isFromGallery);
+      // Use the new clean uploader
+      const uploadResult = await uploadChatImage(uri, user.id);
       
-      if (directResult.success) {
-        console.log('✅ Direct upload succeeded:', directResult);
-        return directResult.publicUrl;
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error || 'Upload failed');
       }
       
-      console.warn('⚠️ Direct uploader failed, trying simple uploader...', directResult.error);
-      
-      // Fallback to simple uploader
-      const simpleResult = await simpleUploadMessageImage(uri, user.id, isFromGallery);
-      
-      if (simpleResult.success) {
-        console.log('✅ Simple upload succeeded:', simpleResult);
-        return simpleResult.publicUrl;
-      }
-      
-      console.warn('⚠️ Simple uploader failed, trying robust uploader...', simpleResult.error);
-      
-      // Last resort: robust uploader
-      const robustResult = await uploadMessageImage(uri, user.id, isFromGallery);
-      
-      if (robustResult.success) {
-        console.log('✅ Robust upload succeeded:', robustResult);
-        return robustResult.publicUrl;
-      }
-      
-      throw new Error(`All uploaders failed. Direct: ${directResult.error}, Simple: ${simpleResult.error}, Robust: ${robustResult.error}`);
+      console.log('✅ Chat image upload succeeded:', uploadResult);
+      return uploadResult.publicUrl;
       
     } catch (error) {
-      console.error('❌ All upload methods failed:', error);
+      console.error('❌ Chat image upload failed:', error);
       throw error;
     }
   };
@@ -173,19 +151,11 @@ const SendToFriendsScreen = ({ route, navigation }) => {
             {
               text: 'OK',
               onPress: () => {
-                if (lastChatId) {
-                  // If we came from a specific chat, go back to it
-                  navigation.navigate('MainTabs', { 
-                    screen: 'Chat', 
-                    params: { 
-                      screen: 'ChatRoom', 
-                      params: { chatId: lastChatId } 
-                    } 
-                  });
-                } else {
-                  // Otherwise go to chat list
-                  navigation.navigate('MainTabs', { screen: 'Chat' });
-                }
+                // Navigate back to Camera and clear modal state
+                navigation.navigate('MainTabs', { 
+                  screen: 'Camera',
+                  params: { shouldClearModal: true }
+                });
               }
             }
           ]

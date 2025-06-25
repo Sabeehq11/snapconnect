@@ -41,7 +41,7 @@ export const useStories = () => {
       if (myStoriesError) throw myStoriesError;
 
       // Fetch friends' stories
-      const friendIds = friends.map(friend => friend.id);
+      const friendIds = (friends || []).map(friend => friend.id);
       let allFriendsStories = [];
       
       if (friendIds.length > 0) {

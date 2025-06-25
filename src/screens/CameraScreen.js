@@ -11,10 +11,12 @@ import {
   StatusBar,
   Modal,
   Image,
+  Button,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
+import { Asset } from 'expo-asset';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { colors, theme } from '../utils/colors';
@@ -23,8 +25,8 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useStories } from '../hooks/useStories';
 import { uploadStoryImage } from '../utils/imageUploader';
-import { simpleUploadStoryImage } from '../utils/simpleUploader';
-import { directUploadStoryImage } from '../utils/directUploader';
+import * as FileSystem from 'expo-file-system';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -54,6 +56,37 @@ const CameraScreen = ({ navigation, route }) => {
       }
     })();
   }, []);
+
+  // Simplified camera initialization
+  useEffect(() => {
+    const initializeCamera = async () => {
+      if (permission?.granted) {
+        console.log('🎥 Camera permissions granted, initializing...');
+        // Simple delay to allow camera to initialize
+        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log('📱 Camera ready');
+      }
+    };
+
+    initializeCamera();
+  }, [permission?.granted]);
+
+  // Reset modal state when returning to camera screen
+  useFocusEffect(
+    React.useCallback(() => {
+      // Only clear modals if we have route params indicating we're returning from a send action
+      if (route.params?.shouldClearModal) {
+        console.log('🔄 Clearing modal state after returning from send action');
+        setShowPhotoPreview(false);
+        setShowImagePreview(false);
+        setCapturedPhoto(null);
+        setSelectedImage(null);
+        
+        // Clear the param to prevent future unintended clears
+        navigation.setParams({ shouldClearModal: undefined });
+      }
+    }, [route.params?.shouldClearModal])
+  );
 
   useEffect(() => {
     if (isRecording) {
@@ -140,28 +173,84 @@ const CameraScreen = ({ navigation, route }) => {
   };
 
   const takePicture = async () => {
-    if (cameraRef.current) {
-      try {
-        animateCapture();
-        
-        const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.9,
-          base64: false,
-          skipProcessing: false,
-        });
+    if (!cameraRef.current) {
+      Alert.alert('Camera Error', 'Camera not ready. Please wait a moment and try again.');
+      return;
+    }
 
-        // Save to library if permission granted
-        if (mediaPermission?.granted) {
-          await MediaLibrary.saveToLibraryAsync(photo.uri);
-        }
+    try {
+      console.log('📸 Attempting to take picture...');
+      
+      animateCapture();
+      
+      // Simplified camera options for better compatibility
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.8,
+        base64: false,
+        skipProcessing: false,
+        exif: false,
+      });
 
-        // Show photo preview
-        setCapturedPhoto(photo.uri);
-        setShowPhotoPreview(true);
-      } catch (error) {
-        console.error('Error taking picture:', error);
-        Alert.alert('😅 Oops!', 'Failed to capture snap. Try again!');
+      console.log('✅ Picture taken successfully:', photo);
+
+      if (!photo || !photo.uri) {
+        throw new Error('No photo URI returned from camera');
       }
+
+      // Basic file validation
+      const fileInfo = await FileSystem.getInfoAsync(photo.uri);
+      console.log('📄 Photo file info:', fileInfo);
+      
+      if (!fileInfo.exists) {
+        throw new Error('Photo file was not created');
+      }
+
+      if (fileInfo.size === 0) {
+        throw new Error('Photo file is empty (0 bytes)');
+      }
+
+      // Save to library if permission granted
+      if (mediaPermission?.granted) {
+        try {
+          await MediaLibrary.saveToLibraryAsync(photo.uri);
+          console.log('✅ Photo saved to library');
+        } catch (saveError) {
+          console.warn('⚠️ Failed to save to library:', saveError);
+          // Don't throw here - saving to library is optional
+        }
+      }
+
+      // Show photo preview
+      setCapturedPhoto(photo.uri);
+      setShowPhotoPreview(true);
+      
+    } catch (error) {
+      console.error('❌ Error taking picture:', error);
+      
+      // Simplified error handling
+      let errorMessage = 'Failed to capture photo. ';
+      
+      if (error.message?.includes('No photo URI returned')) {
+        errorMessage = 'Camera failed to capture photo. Try switching cameras or restarting the app.';
+      } else if (error.message?.includes('Photo file was not created')) {
+        errorMessage = 'Photo could not be saved. Check device storage and try again.';
+      } else if (error.message?.includes('Photo file is empty')) {
+        errorMessage = 'Photo capture failed. Try again with better lighting.';
+      } else {
+        errorMessage += error.message || 'Unknown error occurred.';
+      }
+      
+      Alert.alert(
+        'Camera Error', 
+        errorMessage,
+        [
+          { text: 'OK' },
+          { 
+            text: 'Switch Camera', 
+            onPress: () => toggleCameraFacing()
+          }
+        ]
+      );
     }
   };
 
@@ -184,7 +273,27 @@ const CameraScreen = ({ navigation, route }) => {
       console.log('Image picker result:', result);
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setSelectedImage(result.assets[0].uri);
+        // ✅ REQUESTED LOGGING: Log picked image URI with detailed analysis
+        const pickedUri = result.assets[0].uri;
+        console.log('📷 PICKED IMAGE DETAILED ANALYSIS:');
+        console.log('   - Full URI:', pickedUri);
+        console.log('   - URI type:', typeof pickedUri);
+        console.log('   - URI length:', pickedUri?.length || 'undefined');
+        console.log('   - Has file:// prefix:', pickedUri?.startsWith('file://') ? '✅ YES' : '❌ NO');
+        console.log('   - Has content:// prefix:', pickedUri?.startsWith('content://') ? '✅ YES' : '❌ NO');
+        console.log('   - Has http:// prefix:', pickedUri?.startsWith('http://') ? '✅ YES' : '❌ NO');
+        console.log('   - Has https:// prefix:', pickedUri?.startsWith('https://') ? '✅ YES' : '❌ NO');
+        console.log('   - URI protocol detected:', pickedUri?.split('://')[0] || 'NONE');
+        console.log('   - Full asset object:', result.assets[0]);
+        
+        // Log additional asset properties
+        const asset = result.assets[0];
+        if (asset.width) console.log('   - Image width:', asset.width);
+        if (asset.height) console.log('   - Image height:', asset.height);
+        if (asset.fileSize) console.log('   - File size:', asset.fileSize, 'bytes');
+        if (asset.type) console.log('   - MIME type:', asset.type);
+        
+        setSelectedImage(pickedUri);
         setShowImagePreview(true);
       }
     } catch (error) {
@@ -218,77 +327,45 @@ const CameraScreen = ({ navigation, route }) => {
     const photoUri = capturedPhoto || selectedImage;
     const isFromGallery = !!selectedImage;
     
+    if (!photoUri || !user) {
+      Alert.alert('Error', 'No photo to upload or user not authenticated');
+      return;
+    }
+    
+    // Close modal immediately for better UX
     setShowPhotoPreview(false);
     setShowImagePreview(false);
     
     try {
-      console.log('📖 Trying direct story uploader first...');
+      console.log('📖 Uploading story image...');
       
-      // Try direct uploader first
-      const directResult = await directUploadStoryImage(photoUri, user.id, isFromGallery);
+      // Use the new clean uploader
+      const uploadResult = await uploadStoryImage(photoUri, user.id);
       
-      if (directResult.success) {
-        console.log('✅ Direct story upload succeeded:', directResult);
-        
-        await createStory(
-          directResult.publicUrl,
-          'image',
-          isFromGallery ? 'Posted from gallery' : 'New story'
-        );
-
-        console.log('🎉 Story posted successfully!');
-        Alert.alert('📖 Story Posted!', 'Your story is now live for 24 hours!');
-        setCapturedPhoto(null);
-        setSelectedImage(null);
-        return;
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error || 'Upload failed');
       }
       
-      console.warn('⚠️ Direct story uploader failed, trying simple uploader...', directResult.error);
+      console.log('✅ Story upload succeeded:', uploadResult);
       
-      // Fallback to simple uploader
-      const simpleResult = await simpleUploadStoryImage(photoUri, user.id, isFromGallery);
-      
-      if (simpleResult.success) {
-        console.log('✅ Simple story upload succeeded:', simpleResult);
-        
-        await createStory(
-          simpleResult.publicUrl,
-          'image',
-          isFromGallery ? 'Posted from gallery' : 'New story'
-        );
-
-        console.log('🎉 Story posted successfully!');
-        Alert.alert('📖 Story Posted!', 'Your story is now live for 24 hours!');
-        setCapturedPhoto(null);
-        setSelectedImage(null);
-        return;
-      }
-      
-      console.warn('⚠️ Simple story uploader failed, trying robust uploader...', simpleResult.error);
-      
-      // Last resort: robust uploader
-      const robustResult = await uploadStoryImage(photoUri, user.id, isFromGallery);
-      
-      if (!robustResult.success) {
-        throw new Error(`All story uploaders failed. Direct: ${directResult.error}, Simple: ${simpleResult.error}, Robust: ${robustResult.error}`);
-      }
-      
-      console.log('✅ Robust story upload completed:', robustResult);
-
       // Create story using the hook with the validated URL
       await createStory(
-        robustResult.publicUrl,
+        uploadResult.publicUrl,
         'image',
         isFromGallery ? 'Posted from gallery' : 'New story'
       );
 
       console.log('🎉 Story posted successfully!');
-      Alert.alert('📖 Story Posted!', 'Your story is now live for 24 hours!');
+      
+      // Clear state first
       setCapturedPhoto(null);
       setSelectedImage(null);
+      
+      // Show success alert
+      Alert.alert('📖 Story Posted!', 'Your story is now live for 24 hours!');
+      
     } catch (error) {
       console.error('❌ Error posting story:', error);
-      console.error('❌ Story context:', { photoUri, userId: user.id, isFromGallery });
       Alert.alert('Error', `Failed to post story: ${error.message}`);
     }
   };
@@ -299,6 +376,8 @@ const CameraScreen = ({ navigation, route }) => {
     setCapturedPhoto(null);
     setSelectedImage(null);
   };
+
+
 
   const startRecording = async () => {
     if (cameraRef.current && !isRecording) {
@@ -348,6 +427,32 @@ const CameraScreen = ({ navigation, route }) => {
         style={styles.camera}
         facing={facing}
         flash={flash ? 'on' : 'off'}
+        mode="picture"
+        videoQuality="1080p"
+        pictureSize="1920x1080"
+        onCameraReady={() => {
+          console.log('🎥 Camera is ready');
+        }}
+        onMountError={(error) => {
+          console.error('❌ Camera mount error:', error);
+          Alert.alert(
+            'Camera Error',
+            'Camera failed to initialize. This is common on some iOS devices. Try switching cameras or restarting the app.',
+            [
+              { text: 'OK' },
+              { 
+                text: 'Switch Camera', 
+                onPress: () => {
+                  toggleCameraFacing();
+                  setTimeout(() => {
+                    Alert.alert('Camera Switched', 'Camera switched. Try again.');
+                  }, 500);
+                }
+              },
+              { text: 'Restart', onPress: () => navigation.replace('Camera') }
+            ]
+          );
+        }}
       >
         {/* Top Controls */}
         <View style={styles.topControls}>
@@ -361,6 +466,8 @@ const CameraScreen = ({ navigation, route }) => {
               color={flash ? colors.snapYellow : colors.white} 
             />
           </TouchableOpacity>
+          
+
           
           <TouchableOpacity style={styles.settingsButton}>
             <Ionicons name="settings" size={24} color={colors.white} />
@@ -506,6 +613,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+
   sideControls: {
     position: 'absolute',
     right: 20,

@@ -37,6 +37,13 @@ const FriendRequestsScreen = ({ navigation }) => {
       const result = await respondToRequest(requestId, 'accept');
       if (result.success) {
         Alert.alert('Success', 'Friend request accepted!');
+        // Force an immediate refresh of the requests list
+        setTimeout(() => {
+          // Trigger a manual refresh by calling the hook's refetch function
+          if (hookData.refetchRequests) {
+            hookData.refetchRequests();
+          }
+        }, 100);
       } else if (result.error) {
         Alert.alert('Error', result.error);
       }
@@ -60,6 +67,13 @@ const FriendRequestsScreen = ({ navigation }) => {
               const result = await respondToRequest(requestId, 'reject');
               if (result.success) {
                 Alert.alert('Success', 'Friend request rejected');
+                // Force an immediate refresh of the requests list
+                setTimeout(() => {
+                  // Trigger a manual refresh by calling the hook's refetch function
+                  if (hookData.refetchRequests) {
+                    hookData.refetchRequests();
+                  }
+                }, 100);
               } else if (result.error) {
                 Alert.alert('Error', result.error);
               }

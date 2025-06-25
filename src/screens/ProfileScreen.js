@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,15 +17,26 @@ import { useAuth } from '../context/AuthContext';
 import { useFriends, useFriendRequests } from '../hooks/useFriends';
 import AddFriendModal from '../components/AddFriendModal';
 import { colors, theme } from '../utils/colors';
+import { useFocusEffect } from '@react-navigation/native';
 
 const ProfileScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
   const { friends = [] } = useFriends() || {};
-  const { receivedRequests = [] } = useFriendRequests() || {};
+  const { receivedRequests = [], refetchRequests } = useFriendRequests() || {};
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [editDisplayName, setEditDisplayName] = useState(user?.displayName || '');
+
+  // Refresh friend requests when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (refetchRequests) {
+        console.log('🔄 Refreshing friend requests on profile focus');
+        refetchRequests();
+      }
+    }, [refetchRequests])
+  );
 
   const handleLogout = () => {
     Alert.alert(

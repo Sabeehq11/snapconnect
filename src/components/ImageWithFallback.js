@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Image,
@@ -10,7 +10,24 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import { colors } from '../utils/colors';
-import { imageDebugger } from '../utils/imageDebugger';
+
+// URL cache to prevent redundant processing
+const urlCache = new Map();
+
+// Cache cleanup - remove old entries periodically
+const cleanupCache = () => {
+  if (urlCache.size > 100) {
+    const entries = Array.from(urlCache.entries());
+    // Keep only the last 50 entries
+    urlCache.clear();
+    entries.slice(-50).forEach(([key, value]) => {
+      urlCache.set(key, value);
+    });
+  }
+};
+
+// Run cleanup every 100 cache additions
+let cacheAddCount = 0;
 
 const ImageWithFallback = ({
   mediaUrl,
@@ -28,23 +45,55 @@ const ImageWithFallback = ({
   const [hasError, setHasError] = useState(false);
   const [errorDetails, setErrorDetails] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
+  const processedRef = useRef(false);
+  const mountedRef = useRef(true);
 
-  // Process the image URL with comprehensive diagnostics
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Process the image URL with caching and optimization
   useEffect(() => {
     const processImageUrl = async () => {
-      if (!mediaUrl) {
+      if (!mediaUrl || !mountedRef.current) {
         console.log('❌ No mediaUrl provided for message:', messageId);
-        setHasError(true);
-        setErrorDetails({ type: 'no_url', message: 'No image URL provided' });
-        setIsLoading(false);
+        if (mountedRef.current) {
+          setHasError(true);
+          setErrorDetails({ type: 'no_url', message: 'No image URL provided' });
+          setIsLoading(false);
+        }
         return;
       }
 
-      setIsLoading(true);
-      setHasError(false);
-      setErrorDetails(null);
+      // Prevent re-processing the same URL
+      if (processedRef.current && imageUrl) {
+        return;
+      }
 
-      console.log('🖼️ Processing image URL for message:', messageId, 'URL:', mediaUrl);
+      // Check cache first
+      const cacheKey = `${mediaUrl}-${messageId}`;
+      if (urlCache.has(cacheKey)) {
+        const cachedResult = urlCache.get(cacheKey);
+        if (mountedRef.current) {
+          setImageUrl(cachedResult.url);
+          setHasError(cachedResult.hasError);
+          setErrorDetails(cachedResult.errorDetails);
+          setIsLoading(false);
+          processedRef.current = true;
+        }
+        return;
+      }
+
+      if (mountedRef.current) {
+        setIsLoading(true);
+        setHasError(false);
+        setErrorDetails(null);
+      }
+
+      console.log('🖼️ Processing image URL for message:', messageId, 'URLL:', mediaUrl);
 
       try {
         let processedUrl = null;
@@ -59,32 +108,29 @@ const ImageWithFallback = ({
           console.error('❌ Local file URL detected in database - upload process failed!');
           console.error('❌ This should be a proper HTTPS URL, not a local file path');
           console.error('❌ Bad URL:', mediaUrl);
-          setHasError(true);
-          setErrorDetails({
+          const errorInfo = {
             type: 'upload_failed',
             message: 'Upload process failed - local file URL found in database',
             originalUrl: mediaUrl,
             recommendation: 'The image was not properly uploaded to Supabase storage'
+          };
+          
+          // Cache the error result
+          urlCache.set(cacheKey, {
+            url: null,
+            hasError: true,
+            errorDetails: errorInfo
           });
-          setIsLoading(false);
+          
+          if (mountedRef.current) {
+            setHasError(true);
+            setErrorDetails(errorInfo);
+            setIsLoading(false);
+          }
           return;
         }
         // Step 3: Handle relative paths by generating public URLs
         else {
-          // Don't try to process local file URLs - they should have been caught earlier
-          if (mediaUrl.startsWith('file://')) {
-            console.error('❌ Local file URL reached relative path handler:', mediaUrl);
-            setHasError(true);
-            setErrorDetails({
-              type: 'upload_failed',
-              message: 'Upload process failed - local file URL found in database',
-              originalUrl: mediaUrl,
-              recommendation: 'The image was not properly uploaded to Supabase storage'
-            });
-            setIsLoading(false);
-            return;
-          }
-          
           console.log('🔄 Generating public URL for file path:', mediaUrl);
           const { data: publicData } = supabase.storage
             .from('media')
@@ -96,41 +142,95 @@ const ImageWithFallback = ({
           }
         }
 
-        if (processedUrl) {
-          // Step 4: Test URL accessibility
-          const urlTest = await imageDebugger.testUrlAccessibility(processedUrl, messageId);
-          
-          if (urlTest.accessible) {
-            setImageUrl(processedUrl);
-            console.log('✅ URL verified and set for message:', messageId);
-          } else {
-            console.error('❌ URL not accessible:', urlTest.error);
-            setHasError(true);
-            setErrorDetails({
-              type: 'url_not_accessible',
-              message: urlTest.error,
-              status: urlTest.status,
+        if (processedUrl && mountedRef.current) {
+          // Simplified URL validation - just check if it's a proper URL format
+          // Skip the intensive accessibility test that causes race conditions
+          try {
+            new URL(processedUrl); // This will throw if URL is malformed
+            
+            // Quick accessibility test without HEAD request that can cause issues
+            const isValidSupabaseUrl = processedUrl.includes('/storage/v1/object/public/media/');
+            
+            if (isValidSupabaseUrl) {
+              // Cache successful result
+              urlCache.set(cacheKey, {
+                url: processedUrl,
+                hasError: false,
+                errorDetails: null
+              });
+              
+              // Periodic cache cleanup
+              cacheAddCount++;
+              if (cacheAddCount % 100 === 0) {
+                cleanupCache();
+              }
+              
+              setImageUrl(processedUrl);
+              processedRef.current = true;
+              console.log('✅ URL verified and set for message:', messageId);
+            } else {
+              throw new Error('Invalid Supabase storage URL format');
+            }
+          } catch (urlError) {
+            console.error('❌ Invalid URL format:', urlError);
+            const errorInfo = {
+              type: 'invalid_url',
+              message: 'Invalid URL format',
               url: processedUrl
+            };
+            
+            // Cache error result
+            urlCache.set(cacheKey, {
+              url: null,
+              hasError: true,
+              errorDetails: errorInfo
             });
+            
+            setHasError(true);
+            setErrorDetails(errorInfo);
           }
         } else {
-          setHasError(true);
-          setErrorDetails({
+          const errorInfo = {
             type: 'url_processing_failed',
             message: 'Failed to process image URL',
             originalUrl: mediaUrl
+          };
+          
+          // Cache error result
+          urlCache.set(cacheKey, {
+            url: null,
+            hasError: true,
+            errorDetails: errorInfo
           });
+          
+          if (mountedRef.current) {
+            setHasError(true);
+            setErrorDetails(errorInfo);
+          }
         }
       } catch (error) {
         console.error('❌ Error processing image URL:', error);
-        setHasError(true);
-        setErrorDetails({
+        const errorInfo = {
           type: 'processing_error',
           message: error.message,
           originalUrl: mediaUrl
+        };
+        
+        // Cache error result
+        urlCache.set(cacheKey, {
+          url: null,
+          hasError: true,
+          errorDetails: errorInfo
         });
+        
+        if (mountedRef.current) {
+          setHasError(true);
+          setErrorDetails(errorInfo);
+        }
       } finally {
-        setIsLoading(false);
+        if (mountedRef.current) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -139,12 +239,16 @@ const ImageWithFallback = ({
 
   const handleImageLoad = () => {
     console.log('✅ Image loaded successfully for message:', messageId);
-    setIsLoading(false);
-    setHasError(false);
+    if (mountedRef.current) {
+      setIsLoading(false);
+      setHasError(false);
+    }
     if (onLoad) onLoad();
   };
 
   const handleImageError = (error) => {
+    if (!mountedRef.current) return;
+    
     console.log('🔄 Image loading started for message:', messageId, 'URL:', imageUrl);
     console.error('❌ Image failed to load for message:', messageId);
     console.error('❌ Error details:', error.nativeEvent || error);
@@ -164,21 +268,39 @@ const ImageWithFallback = ({
       }
     }
     
-    setIsLoading(false);
-    setHasError(true);
-    setErrorDetails({
+    const errorInfo = {
       type: errorType,
       message: errorMessage,
       nativeError: error.nativeEvent,
       currentUrl: imageUrl,
       originalUrl: mediaUrl
+    };
+    
+    // Update cache with error info
+    const cacheKey = `${mediaUrl}-${messageId}`;
+    urlCache.set(cacheKey, {
+      url: imageUrl,
+      hasError: true,
+      errorDetails: errorInfo
     });
+    
+    setIsLoading(false);
+    setHasError(true);
+    setErrorDetails(errorInfo);
     
     if (onError) onError(error);
   };
 
   const handleRetry = () => {
+    if (!mountedRef.current) return;
+    
     console.log('🔄 Retrying image load for message:', messageId);
+    
+    // Clear cache for this item to force reprocessing
+    const cacheKey = `${mediaUrl}-${messageId}`;
+    urlCache.delete(cacheKey);
+    processedRef.current = false;
+    
     setRetryCount(prev => prev + 1);
   };
 

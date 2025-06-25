@@ -18,22 +18,61 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
 const CreateGroupChatModal = ({ visible, onClose, onGroupCreated }) => {
-  const { friends = [], loading: friendsLoading } = useFriends();
+  const { friends = [], loading: friendsLoading, refetchFriends } = useFriends();
   const { user } = useAuth();
   const [groupName, setGroupName] = useState('');
   const [selectedFriends, setSelectedFriends] = useState([]);
   const [isCreating, setIsCreating] = useState(false);
 
-  // Debug logging
+  // Debug logging and force refresh when modal opens
   useEffect(() => {
     if (visible) {
-      console.log('CreateGroupChatModal opened');
-      console.log('Friends loaded:', friends);
-      console.log('Friends count:', friends.length);
-      console.log('Friends loading:', friendsLoading);
-      console.log('User:', user);
+      console.log('🔥 CreateGroupChatModal opened');
+      console.log('👥 Friends loaded:', friends);
+      console.log('📊 Friends count:', friends.length);
+      console.log('⏳ Friends loading state:', friendsLoading);
+      console.log('👤 Current user:', user?.id);
+      
+      // Log individual friends for debugging
+      if (friends && friends.length > 0) {
+        friends.forEach((friend, index) => {
+          console.log(`👤 Friend ${index + 1}:`, {
+            id: friend.id,
+            name: friend.display_name || friend.username,
+            email: friend.email
+          });
+        });
+      } else {
+        console.log('⚠️ No friends data available for group chat');
+      }
+      
+      // Force refresh friends when modal opens
+      if (refetchFriends) {
+        console.log('🔄 Forcing friends refresh...');
+        refetchFriends();
+      } else {
+        console.log('⚠️ refetchFriends function not available');
+      }
     }
-  }, [visible, friends, user, friendsLoading]);
+  }, [visible, friends, user, friendsLoading, refetchFriends]);
+
+  // Additional debugging effect to monitor friends changes
+  useEffect(() => {
+    console.log('🔍 Friends data changed:', {
+      count: friends.length,
+      loading: friendsLoading,
+      hasData: friends.length > 0,
+      modalVisible: visible
+    });
+  }, [friends, friendsLoading, visible]);
+
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!visible) {
+      setGroupName('');
+      setSelectedFriends([]);
+    }
+  }, [visible]);
 
   const handleToggleFriend = (friend) => {
     setSelectedFriends(prev => {

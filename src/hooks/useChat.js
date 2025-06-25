@@ -105,10 +105,38 @@ export const useChat = (chatId) => {
       .eq('id', chatId);
   };
 
+  const clearChatHistory = async () => {
+    if (!user || !chatId) return;
+
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('chat_id', chatId);
+
+      if (error) {
+        throw error;
+      }
+
+      // Update chat's last message timestamp to now
+      await supabase
+        .from('chats')
+        .update({ last_message_at: new Date().toISOString() })
+        .eq('id', chatId);
+
+      console.log('✅ Chat history cleared successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Error clearing chat history:', error);
+      throw error;
+    }
+  };
+
   return {
     messages,
     loading,
     sendMessage,
+    clearChatHistory,
   };
 };
 
@@ -133,7 +161,7 @@ export const useChats = () => {
 
     const fetchChats = async () => {
       try {
-        // First, get chats for the user
+        // First, get chats for the user with better deduplication
         const { data: chatsData, error: chatsError } = await supabase
           .from('chats')
           .select('*')
@@ -146,11 +174,33 @@ export const useChats = () => {
           return;
         }
 
-        // For each chat, get the last message, participants info, and unread count
+        // Deduplicate chats by participants (for group chats) or by unique id
+        const uniqueChats = [];
+        const seenChats = new Set();
+
+        (chatsData || []).forEach(chat => {
+          // Create a unique key for the chat
+          let chatKey;
+          if (chat.is_group_chat) {
+            // For group chats, use the chat ID
+            chatKey = chat.id;
+          } else {
+            // For 1-on-1 chats, create a key based on sorted participants
+            const sortedParticipants = [...chat.participants].sort();
+            chatKey = sortedParticipants.join('-');
+          }
+
+          if (!seenChats.has(chatKey)) {
+            seenChats.add(chatKey);
+            uniqueChats.push(chat);
+          }
+        });
+
+        // For each unique chat, get the last message, participants info, and unread count
         const enrichedChats = await Promise.all(
-          (chatsData || []).map(async (chat) => {
+          uniqueChats.map(async (chat) => {
             // Get last message
-            const { data: lastMessage } = await supabase
+            const { data: lastMessageData } = await supabase
               .from('messages')
               .select(`
                 content,
@@ -160,13 +210,14 @@ export const useChats = () => {
               `)
               .eq('chat_id', chat.id)
               .order('created_at', { ascending: false })
-              .limit(1)
-              .single();
+              .limit(1);
+
+            const lastMessage = lastMessageData && lastMessageData.length > 0 ? lastMessageData[0] : null;
 
             // Get participants info
             const { data: participants } = await supabase
               .from('users')
-              .select('id, display_name, email')
+              .select('id, display_name, email, username')
               .in('id', chat.participants);
 
             // Get unread count - messages where current user hasn't viewed
@@ -179,17 +230,40 @@ export const useChats = () => {
 
             return {
               ...chat,
-              last_message: lastMessage,
+              messages: lastMessage ? [lastMessage] : [], // Use array format for consistency
               participants: participants || [],
               unread_count: unreadCount || 0
             };
           })
         );
 
-        setChats(enrichedChats);
+        // Final deduplication check - remove any remaining duplicates by participants
+        const finalChats = [];
+        const finalSeenKeys = new Set();
+
+        enrichedChats.forEach(chat => {
+          let finalKey;
+          if (chat.is_group_chat) {
+            finalKey = chat.id;
+          } else {
+            // For 1-on-1 chats, ensure we don't have duplicates based on participants
+            const otherParticipants = (chat.participants || [])
+              .filter(p => p.id !== user.id)
+              .map(p => p.id)
+              .sort();
+            finalKey = otherParticipants.join('-');
+          }
+
+          if (!finalSeenKeys.has(finalKey)) {
+            finalSeenKeys.add(finalKey);
+            finalChats.push(chat);
+          }
+        });
+
+        setChats(finalChats);
         
         // Calculate total unread count
-        const totalUnread = enrichedChats.reduce((sum, chat) => sum + (chat.unread_count || 0), 0);
+        const totalUnread = finalChats.reduce((sum, chat) => sum + (chat.unread_count || 0), 0);
         setTotalUnreadCount(totalUnread);
       } catch (error) {
         console.error('Error in fetchChats:', error);
@@ -199,8 +273,8 @@ export const useChats = () => {
 
     fetchChats();
 
-    // Set up real-time subscription for chat updates with unique channel name
-    const channelName = `user-chats-${user.id}-${Math.random().toString(36).substr(2, 9)}`;
+    // Set up real-time subscription with unique channel name
+    const channelName = `chats-${user.id}-${Math.random().toString(36).substr(2, 9)}`;
     subscriptionRef.current = supabase
       .channel(channelName)
       .on(
@@ -211,19 +285,19 @@ export const useChats = () => {
           table: 'chats',
         },
         () => {
-          // Refetch chats when any chat is updated
+          console.log('Chat change detected, refetching...');
           fetchChats();
         }
       )
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'messages',
         },
         () => {
-          // Refetch chats when new messages arrive
+          console.log('Message change detected, refetching chats...');
           fetchChats();
         }
       )
@@ -251,7 +325,7 @@ export const useChats = () => {
 
       if (unreadMessages && unreadMessages.length > 0) {
         // Mark all unread messages as viewed
-        const updates = unreadMessages.map(async (message) => {
+        const updates = (unreadMessages || []).map(async (message) => {
           const viewedBy = message.viewed_by || [];
           const newViewedBy = [...viewedBy, {
             user_id: user.id,

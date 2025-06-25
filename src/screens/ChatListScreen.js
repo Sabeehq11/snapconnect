@@ -78,6 +78,10 @@ const ChatListScreen = ({ navigation }) => {
       const lastMsg = chat.messages[0];
       return lastMsg.content || 'Media message';
     }
+    // Also check the old format for backwards compatibility
+    if (chat.last_message) {
+      return chat.last_message.content || 'Media message';
+    }
     return 'Start the conversation...';
   };
 
@@ -484,21 +488,25 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: theme.spacing.md,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: theme.borderRadius.lg,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
   },
   searchGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
     backgroundColor: colors.surface,
     borderRadius: theme.borderRadius.lg,
+    flex: 1,
   },
   searchInput: {
     flex: 1,
-    padding: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
     color: colors.textPrimary,
+    fontSize: theme.typography.fontSizes.md,
   },
   tabContainer: {
     flexDirection: 'row',

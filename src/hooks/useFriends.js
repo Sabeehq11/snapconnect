@@ -12,6 +12,7 @@ export const useFriends = () => {
     if (!user) return;
 
     try {
+      console.log('🔍 Fetching friends for user:', user.id);
       const { data, error } = await supabase.rpc('get_user_friends');
       if (error) {
         console.error('Error fetching friends:', error);
@@ -21,7 +22,7 @@ export const useFriends = () => {
           setFriends([]);
         }
       } else {
-        console.log('Fetched friends:', data); // Debug log
+        console.log('✅ Fetched friends successfully:', data); // Debug log
         setFriends(data || []);
       }
     } catch (error) {
@@ -60,7 +61,21 @@ export const useFriends = () => {
         },
         () => {
           console.log('Friendship change detected, refetching friends...');
-          fetchFriends();
+          // Add a small delay to ensure DB operations are complete
+          setTimeout(fetchFriends, 500);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'friend_requests',
+        },
+        () => {
+          console.log('Friend request change detected, refetching friends...');
+          // Add a small delay to ensure DB operations are complete
+          setTimeout(fetchFriends, 500);
         }
       )
       .subscribe();
@@ -71,7 +86,7 @@ export const useFriends = () => {
         subscriptionRef.current = null;
       }
     };
-  }, [user?.id]); // Only depend on user.id
+  }, [user?.id]); // FIXED: Removed fetchFriends from dependencies to prevent circular dependency
 
   const sendFriendRequest = async (emailOrUsername, message = null) => {
     try {
@@ -174,7 +189,22 @@ export const useFriendRequests = () => {
           table: 'friend_requests',
         },
         () => {
-          fetchRequests();
+          console.log('Friend request change detected, refetching...');
+          // Add a small delay to ensure DB operations are complete
+          setTimeout(fetchRequests, 500);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'friendships',
+        },
+        () => {
+          console.log('Friendship change detected, refetching requests...');
+          // Add a small delay to ensure DB operations are complete
+          setTimeout(fetchRequests, 500);
         }
       )
       .subscribe();
@@ -185,7 +215,7 @@ export const useFriendRequests = () => {
         subscriptionRef.current = null;
       }
     };
-  }, [user?.id]); // Only depend on user.id
+  }, [user?.id, fetchRequests]); // Add fetchRequests to dependencies
 
   const respondToRequest = async (requestId, response) => {
     try {
@@ -201,18 +231,24 @@ export const useFriendRequests = () => {
         throw error;
       }
 
-      // Refresh requests after responding
-      await fetchRequests();
-      
-      // If accepted, trigger a manual refresh of friends (fallback)
-      if (response === 'accept') {
-        console.log('Friend request accepted, triggering friends refresh...');
-        // Small delay to ensure database changes are propagated
-        setTimeout(() => {
-          // This will be handled by the real-time subscription, but we add this as fallback
-        }, 1000);
+      // Immediately update local state to reflect the change
+      if (response === 'accept' || response === 'reject') {
+        setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
       }
-      
+
+      // Force refresh of both requests and friends after successful response
+      setTimeout(() => {
+        fetchRequests();
+      }, 100);
+
+      // Also trigger a friends refetch if this was an accept
+      if (response === 'accept') {
+        // Import and trigger friends refetch
+        setTimeout(() => {
+          // This will be handled by the real-time subscription
+        }, 200);
+      }
+
       return data;
     } catch (error) {
       console.error('Error responding to friend request:', error);

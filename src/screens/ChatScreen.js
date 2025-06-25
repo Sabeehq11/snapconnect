@@ -33,9 +33,9 @@ import { runFullCleanup } from '../utils/runCleanup';
 const { width, height } = Dimensions.get('window');
 
 const ChatScreen = ({ route, navigation }) => {
-  const { chatId, chatName, isGroupChat = false, participants = [] } = route.params;
+  const { chatId, chatName, isGroupChat = false, participants = [] } = route.params || {};
   const { user } = useAuth();
-  const { messages, loading, sendMessage } = useChat(chatId);
+  const { messages, loading, sendMessage, clearChatHistory } = useChat(chatId);
   const { markChatAsRead } = useChats();
   const [newMessage, setNewMessage] = useState('');
   const [viewingMessage, setViewingMessage] = useState(null);
@@ -49,6 +49,64 @@ const ChatScreen = ({ route, navigation }) => {
   const textInputRef = useRef(null);
   const insets = useSafeAreaInsets();
 
+  const handleChatOptions = () => {
+    const options = ['Clear Chat History', 'Cancel'];
+    if (!isGroupChat) {
+      options.unshift('View Profile');
+    }
+    
+    Alert.alert(
+      'Chat Options',
+      '',
+      options.map((option, index) => ({
+        text: option,
+        style: option === 'Cancel' ? 'cancel' : option === 'Clear Chat History' ? 'destructive' : 'default',
+        onPress: () => {
+          if (option === 'View Profile') {
+            handleViewProfile();
+          } else if (option === 'Clear Chat History') {
+            handleClearHistory();
+          }
+        }
+      }))
+    );
+  };
+
+  const handleViewProfile = () => {
+    // For now, show basic info - can be expanded later
+    const otherParticipant = participants.find(p => p.id !== user.id);
+    if (otherParticipant) {
+      Alert.alert(
+        'Profile',
+        `Name: ${otherParticipant.display_name || otherParticipant.username}\nEmail: ${otherParticipant.email}`,
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  const handleClearHistory = () => {
+    Alert.alert(
+      'Clear Chat History',
+      'Are you sure? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await clearChatHistory();
+              Alert.alert('Success', 'Chat history cleared');
+            } catch (error) {
+              console.error('Clear history error:', error);
+              Alert.alert('Error', 'Failed to clear chat history');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   useEffect(() => {
     navigation.setOptions({
       headerTitle: chatName,
@@ -61,20 +119,14 @@ const ChatScreen = ({ route, navigation }) => {
         color: colors.textPrimary,
         fontWeight: theme.typography.fontWeights.semibold,
       },
-      headerRight: () => isGroupChat ? (
+      headerRight: () => (
         <TouchableOpacity
           style={{ marginRight: 16 }}
-          onPress={() => {
-            Alert.alert(
-              'Group Info',
-              `${chatName}\n${participants.length} members`,
-              [{ text: 'OK' }]
-            );
-          }}
+          onPress={handleChatOptions}
         >
-          <Ionicons name="information-circle-outline" size={24} color={colors.textPrimary} />
+          <Ionicons name="ellipsis-vertical" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-      ) : null,
+      ),
     });
 
     // Mark chat as read when entering
@@ -531,65 +583,56 @@ const ChatScreen = ({ route, navigation }) => {
 
         {/* Message Viewer Modal */}
         <Modal
-          transparent={true}
           visible={!!viewingMessage}
           animationType="fade"
+          statusBarTranslucent
           onRequestClose={closeMessageView}
         >
-          <Animated.View style={[styles.messageViewer, { opacity: fadeAnim }]}>
-            <LinearGradient
-              colors={colors.gradients.dark}
-              style={styles.messageViewerGradient}
-            >
+          {viewingMessage && (
+            <View style={styles.messageViewer}>
               <TouchableOpacity 
-                style={styles.messageViewerOverlay}
+                style={styles.messageViewerTouchArea}
                 onPress={closeMessageView}
+                activeOpacity={1}
               >
-                {viewingMessage?.message_type === 'image' ? (
-                  <View style={styles.fullScreenImageContainer}>
-                    <ImageWithFallback
-                      mediaUrl={viewingMessage.media_url}
-                      messageId={viewingMessage.id}
-                      style={styles.fullScreenImage}
-                      resizeMode="contain"
-                      showFallback={true}
-                    >
-                      <View style={styles.fullScreenImageOverlay}>
-                        <Text style={styles.fullScreenImageCaption}>
-                          {viewingMessage.content}
-                        </Text>
-                        <Text style={styles.fullScreenSender}>
-                          From: {viewingMessage?.sender?.display_name || 'Unknown'}
-                        </Text>
-                        {viewingMessage.disappear_after_seconds && (
-                          <Text style={styles.disappearWarning}>
-                            This snap will disappear in {viewingMessage.disappear_after_seconds} seconds
-                          </Text>
-                        )}
-                      </View>
-                    </ImageWithFallback>
-                  </View>
+                {viewingMessage.message_type === 'image' ? (
+                  <ImageWithFallback
+                    mediaUrl={viewingMessage.media_url}
+                    messageId={viewingMessage.id}
+                    style={styles.fullScreenImage}
+                    resizeMode="contain"
+                    showFallback={true}
+                  />
                 ) : (
-                  <LinearGradient
-                    colors={colors.gradients.card}
-                    style={styles.fullScreenMessage}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
+                  <View style={styles.fullScreenMessageContainer}>
                     <Text style={styles.fullScreenMessageText}>
-                      {viewingMessage?.content}
+                      {viewingMessage.content}
                     </Text>
-                    <Text style={styles.fullScreenSender}>
-                      From: {viewingMessage?.sender?.display_name || 'Unknown'}
-                    </Text>
-                    <Text style={styles.disappearWarning}>
-                      This message will disappear in {viewingMessage?.disappear_after_seconds} seconds
-                    </Text>
-                  </LinearGradient>
+                  </View>
                 )}
               </TouchableOpacity>
-            </LinearGradient>
-          </Animated.View>
+              
+              {/* Close button */}
+              <TouchableOpacity 
+                style={styles.messageCloseButton}
+                onPress={closeMessageView}
+              >
+                <Ionicons name="close" size={28} color={colors.white} />
+              </TouchableOpacity>
+              
+              {/* Message info */}
+              <View style={styles.messageInfo}>
+                <Text style={styles.messageInfoText}>
+                  From: {viewingMessage?.sender?.display_name || 'Unknown'}
+                </Text>
+                {viewingMessage.disappear_after_seconds && (
+                  <Text style={styles.disappearWarning}>
+                    Disappears in {viewingMessage.disappear_after_seconds}s
+                  </Text>
+                )}
+              </View>
+            </View>
+          )}
         </Modal>
 
         {/* Diagnostic Panel */}
@@ -749,16 +792,42 @@ const styles = StyleSheet.create({
   },
   messageViewer: {
     flex: 1,
+    backgroundColor: 'black',
   },
-  messageViewerGradient: {
-    flex: 1,
-  },
-  messageViewerOverlay: {
+  messageViewerTouchArea: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme.spacing.xl,
-    backgroundColor: colors.overlayDark,
+  },
+  messageCloseButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 20,
+    padding: 8,
+    zIndex: 10,
+  },
+  messageInfo: {
+    position: 'absolute',
+    bottom: 50,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 12,
+    padding: 16,
+    zIndex: 10,
+  },
+  messageInfoText: {
+    color: colors.white,
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  fullScreenMessageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
   },
   fullScreenMessage: {
     borderRadius: theme.borderRadius.xl,
