@@ -161,8 +161,16 @@ export const colors = {
   warningLight: '#FBBF24',
   info: '#3B82F6',           // Blue
   infoLight: '#60A5FA',
+  purple: '#8B5CF6',          // Purple
+  pink: '#EC4899',            // Pink
+  teal: '#14B8A6',            // Teal
+  orange: '#F97316',          // Orange
+  cyan: '#06B6D4',            // Cyan
+  lime: '#84CC16',            // Lime
   
   // Surface colors
+  background: '#1A1A1F',        // Main background
+  backgroundSecondary: '#22272E', // Secondary background
   surface: '#161B22',
   surfaceElevated: '#1C2128',
   surfaceCard: '#22272E',

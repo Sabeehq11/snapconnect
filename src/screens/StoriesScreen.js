@@ -19,15 +19,68 @@ import { useAuth } from '../context/AuthContext';
 import { colors, theme } from '../utils/colors';
 import { useStories } from '../hooks/useStories';
 import ImageWithFallback from '../components/ImageWithFallback';
+import CampusStoriesSection from '../components/CampusStoriesSection';
+import RAGStoryIdeas from '../components/RAGStoryIdeas';
+import BestCampusPlacesSection from '../components/BestCampusPlacesSection';
+import RAGStoryCaptionSuggestor from '../components/RAGStoryCaptionSuggestor';
+import StoryTagSelector from '../components/StoryTagSelector';
 
 const { width, height } = Dimensions.get('window');
 
-const StoriesScreen = ({ navigation }) => {
+const StoriesScreen = ({ navigation, route }) => {
   const [viewingStory, setViewingStory] = useState(null);
   const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
   const [storyGroup, setStoryGroup] = useState([]);
+  const [showStoryIdeas, setShowStoryIdeas] = useState(false);
+  const [showCampusStoryPost, setShowCampusStoryPost] = useState(false);
+  const [showStoryCaptionSuggestor, setShowStoryCaptionSuggestor] = useState(false);
+  const [selectedStoryTag, setSelectedStoryTag] = useState(null);
+  const [pendingStoryData, setPendingStoryData] = useState(null);
   const { user } = useAuth();
   const { stories, friendsStories, loading, fetchStories, markStoryAsViewed, deleteStory } = useStories();
+
+  // Handle navigation params (when returning from camera with story or after publishing)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      // Get params from route directly
+      const params = route.params;
+      
+      // Handle campus story creation flow
+      if (params?.newCampusStory) {
+        // User just created a story for campus posting
+        const storyData = params.newCampusStory;
+        setPendingStoryData(storyData);
+        setSelectedStoryTag(storyData.tag);
+        setShowStoryCaptionSuggestor(true);
+        
+        // Clear the params
+        navigation.setParams({ newCampusStory: undefined });
+      }
+      
+      // Handle story published feedback
+      if (params?.storyPublished) {
+        const publishedTo = params.publishedTo || 'your story';
+        
+        // Refresh stories to show the new one
+        fetchStories();
+        
+        // Show success feedback
+        Alert.alert(
+          '🎉 Story Published!', 
+          `Your story has been posted to ${publishedTo} and is now live!`,
+          [{ text: 'Awesome!', style: 'default' }]
+        );
+        
+        // Clear the params
+        navigation.setParams({ 
+          storyPublished: undefined,
+          publishedTo: undefined 
+        });
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, fetchStories, route.params]);
 
   // Stories are now managed by the hook, no need for local fetching
 
@@ -79,6 +132,54 @@ const StoriesScreen = ({ navigation }) => {
     } catch (error) {
       Alert.alert('Error', 'Failed to delete story');
     }
+  };
+
+  const handleCampusStoryPost = () => {
+    setShowCampusStoryPost(true);
+  };
+
+  const handleTagSelected = (tag) => {
+    setSelectedStoryTag(tag);
+    setShowCampusStoryPost(false);
+    // Navigate to camera with tag context
+    navigation.navigate('Camera', { 
+      campusStoryTag: tag,
+      isForCampusStory: true 
+    });
+  };
+
+  const handleStoryCaptionSelected = (caption) => {
+    console.log('✅ Story caption selected:', caption);
+    if (pendingStoryData) {
+      // Apply caption to pending story and post it
+      const storyWithCaption = {
+        ...pendingStoryData,
+        caption: caption
+      };
+      // Post the story (this would integrate with your backend)
+      console.log('📢 Posting story to campus feed:', storyWithCaption);
+      Alert.alert('Success', 'Story posted to campus feed!');
+      setPendingStoryData(null);
+    }
+  };
+
+  const handlePlacePress = (place) => {
+    Alert.alert(
+      place.title,
+      `${place.description}\n\nWould you like to create a story here?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Create Story', 
+          onPress: () => {
+            navigation.navigate('Camera', { 
+              locationContext: place,
+              isForCampusStory: true 
+            });
+          }
+        }
+      ]
+    );
   };
 
   const navigateStory = (direction) => {
@@ -174,9 +275,37 @@ const StoriesScreen = ({ navigation }) => {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Stories</Text>
-        <TouchableOpacity style={styles.searchButton}>
-          <Ionicons name="search" size={24} color={colors.white} />
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity 
+            style={[styles.headerButton, styles.campusPostButton]} 
+            onPress={handleCampusStoryPost}
+          >
+            <LinearGradient
+              colors={colors.gradients.secondary}
+              style={styles.campusPostGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Ionicons name="megaphone" size={20} color={colors.white} />
+            </LinearGradient>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.headerButton, styles.storyIdeasButton]} 
+            onPress={() => setShowStoryIdeas(true)}
+          >
+            <LinearGradient
+              colors={colors.gradients.accent}
+              style={styles.storyIdeasGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Ionicons name="bulb" size={20} color={colors.white} />
+            </LinearGradient>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.searchButton}>
+            <Ionicons name="search" size={24} color={colors.white} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -194,7 +323,65 @@ const StoriesScreen = ({ navigation }) => {
           />
         </View>
 
+        {/* Best Campus Places Section */}
+        <BestCampusPlacesSection onPlacePress={handlePlacePress} />
 
+        {/* Story Categories Section */}
+        <View style={styles.categoriesSection}>
+          <View style={styles.categoriesHeader}>
+            <Text style={styles.categoriesTitle}>Story Categories</Text>
+            <Text style={styles.categoriesSubtitle}>Explore stories by topic</Text>
+          </View>
+          
+          <View style={styles.categoriesGrid}>
+            {[
+              { id: 'study', title: '📚 Study Stories', color: colors.primary },
+              { id: 'food', title: '🍕 Food Stories', color: colors.secondary },
+              { id: 'fitness', title: '💪 Fitness', color: colors.success },
+              { id: 'events', title: '🎉 Events', color: colors.warning },
+              { id: 'dorm_life', title: '🛋️ Dorm Life', color: colors.info },
+              { id: 'social', title: '👥 Social', color: colors.pink },
+            ].map((category) => (
+              <TouchableOpacity
+                key={category.id}
+                style={styles.categoryCard}
+                onPress={() => navigation.navigate('CategoryStories', {
+                  category: category.id,
+                  categoryTitle: category.title,
+                  categoryIcon: category.title.split(' ')[0],
+                  categoryColor: category.color
+                })}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={[`${category.color}20`, `${category.color}10`]}
+                  style={styles.categoryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={styles.categoryIcon}>
+                    {category.title.split(' ')[0]}
+                  </Text>
+                  <Text style={styles.categoryTitle}>
+                    {category.title.split(' ').slice(1).join(' ')}
+                  </Text>
+                  <View style={styles.categoryArrow}>
+                    <Ionicons name="chevron-forward" size={16} color={category.color} />
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Campus Stories Section */}
+        <CampusStoriesSection 
+          navigation={navigation}
+          onStoryPress={(story) => {
+            console.log('Campus story pressed:', story);
+            // The CampusStoriesSection now handles viewing internally
+          }}
+        />
 
         {/* Empty State */}
         {stories.length <= 1 && !loading && (
@@ -332,6 +519,33 @@ const StoriesScreen = ({ navigation }) => {
           </View>
         )}
       </Modal>
+
+      {/* Story Ideas Modal */}
+      <RAGStoryIdeas
+        visible={showStoryIdeas}
+        onClose={() => setShowStoryIdeas(false)}
+        onSelectIdea={(idea) => {
+          console.log('Selected story idea:', idea);
+          // Navigate to camera with the idea as context
+          navigation.navigate('Camera', { storyIdea: idea });
+        }}
+      />
+
+      {/* Campus Story Tag Selector Modal */}
+      <StoryTagSelector
+        visible={showCampusStoryPost}
+        onClose={() => setShowCampusStoryPost(false)}
+        onSelectTag={handleTagSelected}
+      />
+
+      {/* Story Caption Suggestions Modal */}
+      <RAGStoryCaptionSuggestor
+        visible={showStoryCaptionSuggestor}
+        onClose={() => setShowStoryCaptionSuggestor(false)}
+        onSelectCaption={handleStoryCaptionSelected}
+        storyTag={selectedStoryTag}
+        imageContext={pendingStoryData?.imageContext || ''}
+      />
     </SafeAreaView>
   );
 };
@@ -356,6 +570,35 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: colors.white,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerButton: {
+    marginRight: 12,
+  },
+  campusPostButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  campusPostGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  storyIdeasButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  storyIdeasGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   searchButton: {
     padding: 8,
@@ -595,6 +838,55 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 14,
     fontWeight: '500',
+  },
+  // Categories Section
+  categoriesSection: {
+    marginVertical: 20,
+    paddingHorizontal: 20,
+  },
+  categoriesHeader: {
+    marginBottom: 16,
+  },
+  categoriesTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.white,
+    marginBottom: 4,
+  },
+  categoriesSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  categoriesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  categoryCard: {
+    width: '48%',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  categoryGradient: {
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 60,
+  },
+  categoryIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  categoryTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.white,
+  },
+  categoryArrow: {
+    marginLeft: 8,
   },
   
 });

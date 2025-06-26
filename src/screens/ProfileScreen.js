@@ -148,8 +148,15 @@ const ProfileScreen = ({ navigation }) => {
       icon: 'camera',
       title: 'Memories', 
       subtitle: 'Your saved snaps',
-      onPress: () => {},
+      onPress: () => navigation.navigate('Memories'),
       color: colors.accent,
+    },
+    { 
+      icon: 'compass',
+      title: 'Discover Friends', 
+      subtitle: 'Find people you might know',
+      onPress: () => navigation.navigate('DiscoverFriends'),
+      color: colors.secondary,
     },
     { 
       icon: 'settings',

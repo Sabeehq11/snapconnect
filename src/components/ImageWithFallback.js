@@ -37,6 +37,7 @@ const ImageWithFallback = ({
   onLoad,
   onError,
   showFallback = true,
+  fallbackComponent = null,
   children,
   ...props
 }) => {
@@ -353,6 +354,14 @@ const ImageWithFallback = ({
 
   // Show error fallback
   if (hasError && showFallback) {
+    if (fallbackComponent) {
+      return (
+        <View style={style}>
+          {fallbackComponent}
+          {children}
+        </View>
+      );
+    }
     return <FallbackUI />;
   }
 

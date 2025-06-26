@@ -119,7 +119,7 @@ export const useStories = () => {
     }
   };
 
-  const createStory = async (mediaUrl, mediaType = 'image', caption = '') => {
+  const createStory = async (mediaUrl, mediaType = 'image', caption = '', category = 'my_story', storyType = 'personal') => {
     if (!user) throw new Error('User not authenticated');
 
     try {
@@ -130,7 +130,9 @@ export const useStories = () => {
             user_id: user.id,
             media_url: mediaUrl,
             media_type: mediaType,
-            caption: caption
+            caption: caption,
+            category: category,
+            story_type: storyType
           }
         ])
         .select()
@@ -145,6 +147,58 @@ export const useStories = () => {
     } catch (error) {
       console.error('Error creating story:', error);
       throw error;
+    }
+  };
+
+  const fetchCategoryStories = async (category) => {
+    if (!user) return [];
+    
+    try {
+      // Fetch stories for a specific category from all users (including friends)
+      const friendIds = (friends || []).map(friend => friend.id);
+      const allUserIds = [user.id, ...friendIds];
+      
+      const { data: categoryStories, error } = await supabase
+        .from('stories')
+        .select(`
+          id,
+          user_id,
+          media_url,
+          media_type,
+          caption,
+          created_at,
+          expires_at,
+          views,
+          category,
+          story_type
+        `)
+        .in('user_id', allUserIds)
+        .eq('category', category)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Add user data to each story
+      const storiesWithUsers = (categoryStories || []).map(story => {
+        const storyUser = story.user_id === user.id 
+          ? { display_name: 'You', username: user.email?.split('@')[0] || 'you', photo_url: user.photo_url }
+          : friends.find(friend => friend.id === story.user_id) || {
+              display_name: 'Unknown User',
+              username: 'unknown',
+              photo_url: null
+            };
+        
+        return {
+          ...story,
+          users: storyUser
+        };
+      });
+
+      return storiesWithUsers;
+    } catch (error) {
+      console.error('Error fetching category stories:', error);
+      return [];
     }
   };
 
@@ -208,6 +262,7 @@ export const useStories = () => {
     loading,
     fetchStories,
     createStory,
+    fetchCategoryStories,
     markStoryAsViewed,
     deleteStory,
   };

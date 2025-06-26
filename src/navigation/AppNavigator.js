@@ -22,6 +22,10 @@ import SettingsScreen from '../screens/SettingsScreen';
 import FriendRequestsScreen from '../screens/FriendRequestsScreen';
 import LoadingScreen from '../screens/LoadingScreen';
 import SendToFriendsScreen from '../screens/SendToFriendsScreen';
+import MemoriesScreen from '../screens/MemoriesScreen';
+import DiscoverFriendsScreen from '../screens/DiscoverFriendsScreen';
+import StoryPublishScreen from '../screens/StoryPublishScreen';
+import CategoryStoriesScreen from '../screens/CategoryStoriesScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -137,6 +141,8 @@ const ProfileStack = () => {
       <Stack.Screen name="ProfileMain" component={ProfileScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="FriendRequests" component={FriendRequestsScreen} />
+      <Stack.Screen name="Memories" component={MemoriesScreen} />
+      <Stack.Screen name="DiscoverFriends" component={DiscoverFriendsScreen} />
     </Stack.Navigator>
   );
 };
@@ -270,6 +276,22 @@ const MainStackNavigator = () => {
         component={SendToFriendsScreen}
         options={{
           presentation: 'modal',
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen 
+        name="StoryPublish" 
+        component={StoryPublishScreen}
+        options={{
+          presentation: 'modal',
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen 
+        name="CategoryStories" 
+        component={CategoryStoriesScreen}
+        options={{
+          presentation: 'card',
           gestureEnabled: true,
         }}
       />

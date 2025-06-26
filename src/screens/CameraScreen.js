@@ -336,42 +336,26 @@ const CameraScreen = ({ navigation, route }) => {
       return;
     }
     
-    // Close modal immediately for better UX
+    console.log('📖 Navigating to Story Publish screen with image:', photoUri);
+    
+    // Close modals
     setShowPhotoPreview(false);
     setShowImagePreview(false);
     
-    try {
-      console.log('📖 Uploading story image...');
-      
-      // Use the new clean uploader
-      const uploadResult = await uploadStoryImage(photoUri, user.id);
-      
-      if (!uploadResult.success) {
-        throw new Error(uploadResult.error || 'Upload failed');
+    // Clear state
+    setCapturedPhoto(null);
+    setSelectedImage(null);
+    
+    // Navigate to StoryPublishScreen with image data
+    navigation.navigate('StoryPublish', {
+      imageUri: photoUri,
+      imageInfo: {
+        isFromGallery,
+        width: width,
+        height: height,
+        source: isFromGallery ? 'gallery' : 'camera'
       }
-      
-      console.log('✅ Story upload succeeded:', uploadResult);
-      
-      // Create story using the hook with the validated URL
-      await createStory(
-        uploadResult.publicUrl,
-        'image',
-        isFromGallery ? 'Posted from gallery' : 'New story'
-      );
-
-      console.log('🎉 Story posted successfully!');
-      
-      // Clear state first
-      setCapturedPhoto(null);
-      setSelectedImage(null);
-      
-      // Show success alert
-      Alert.alert('📖 Story Posted!', 'Your story is now live for 24 hours!');
-      
-    } catch (error) {
-      console.error('❌ Error posting story:', error);
-      Alert.alert('Error', `Failed to post story: ${error.message}`);
-    }
+    });
   };
 
   const handleCancelPhoto = () => {
