@@ -35,7 +35,7 @@ const { width, height } = Dimensions.get('window');
 const ChatScreen = ({ route, navigation }) => {
   const { chatId, chatName, isGroupChat = false, participants = [] } = route.params || {};
   const { user } = useAuth();
-  const { messages, loading, sendMessage, clearChatHistory } = useChat(chatId);
+  const { messages, loading, sendMessage, clearChatHistory, deleteMessage } = useChat(chatId);
   const { markChatAsRead } = useChats();
   const [newMessage, setNewMessage] = useState('');
   const [viewingMessage, setViewingMessage] = useState(null);
@@ -100,6 +100,35 @@ const ChatScreen = ({ route, navigation }) => {
             } catch (error) {
               console.error('Clear history error:', error);
               Alert.alert('Error', 'Failed to clear chat history');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleDeleteMessage = (message) => {
+    // Only allow deleting own messages
+    if (message.sender_id !== user.id) {
+      Alert.alert('Error', 'You can only delete your own messages');
+      return;
+    }
+
+    Alert.alert(
+      'Delete Message',
+      'Are you sure you want to delete this message? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteMessage(message.id);
+              // Message will be automatically removed from UI by the deleteMessage function
+            } catch (error) {
+              console.error('Delete message error:', error);
+              Alert.alert('Error', error.message || 'Failed to delete message');
             }
           }
         }
@@ -413,7 +442,8 @@ const ChatScreen = ({ route, navigation }) => {
           isImageMessage && styles.imageMessageContainer
         ]}
         onPress={() => handleViewMessage(item)}
-        disabled={isOwnMessage}
+        onLongPress={isOwnMessage ? () => handleDeleteMessage(item) : undefined}
+        disabled={isOwnMessage && !isImageMessage}
         activeOpacity={0.8}
       >
         {/* Show sender name in group chats for non-own messages */}

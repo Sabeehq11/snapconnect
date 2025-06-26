@@ -155,6 +155,11 @@ CREATE POLICY "Enable update for message sender"
 ON public.messages FOR UPDATE 
 USING (auth.uid() = sender_id);
 
+-- Allow users to delete their own messages
+CREATE POLICY "Enable delete for message sender" 
+ON public.messages FOR DELETE 
+USING (auth.uid() = sender_id);
+
 -- =====================================================
 -- SECTION 6: UPDATE EXISTING DATA
 -- =====================================================

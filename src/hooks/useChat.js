@@ -132,11 +132,54 @@ export const useChat = (chatId) => {
     }
   };
 
+  const deleteMessage = async (messageId) => {
+    if (!user || !chatId) return;
+
+    try {
+      // First, check if the message belongs to the current user
+      const { data: message, error: fetchError } = await supabase
+        .from('messages')
+        .select('sender_id')
+        .eq('id', messageId)
+        .eq('chat_id', chatId)
+        .single();
+
+      if (fetchError) {
+        throw new Error('Message not found');
+      }
+
+      if (message.sender_id !== user.id) {
+        throw new Error('You can only delete your own messages');
+      }
+
+      // Delete the message
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('id', messageId)
+        .eq('sender_id', user.id); // Extra security check
+
+      if (error) {
+        throw error;
+      }
+
+      // Update local state to remove the deleted message
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+
+      console.log('✅ Message deleted successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Error deleting message:', error);
+      throw error;
+    }
+  };
+
   return {
     messages,
     loading,
     sendMessage,
     clearChatHistory,
+    deleteMessage,
   };
 };
 
