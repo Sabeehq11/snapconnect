@@ -27,6 +27,7 @@ import { useStories } from '../hooks/useStories';
 import { uploadStoryImage } from '../utils/imageUploader';
 import * as FileSystem from 'expo-file-system';
 import { useFocusEffect } from '@react-navigation/native';
+import RAGStoryIdeas from '../components/RAGStoryIdeas';
 
 const { width, height } = Dimensions.get('window');
 
@@ -45,6 +46,9 @@ const CameraScreen = ({ navigation, route }) => {
   const cameraRef = useRef(null);
   const captureAnimation = useRef(new Animated.Value(1)).current;
   const recordingAnimation = useRef(new Animated.Value(1)).current;
+  
+  // RAG Features
+  const [showStoryIdeas, setShowStoryIdeas] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -417,6 +421,21 @@ const CameraScreen = ({ navigation, route }) => {
     }
   };
 
+  // RAG Handler Functions
+  const handleSelectStoryIdea = (idea) => {
+    console.log('✅ RAG: Selected story idea:', idea);
+    Alert.alert(
+      '💡 Story Idea Selected',
+      `Great choice! "${idea.split(':')[0]}" - Now capture your story!`,
+      [{ text: 'Got it!', style: 'default' }]
+    );
+  };
+
+  const handleOpenStoryIdeas = () => {
+    console.log('🤖 RAG: Opening story ideas');
+    setShowStoryIdeas(true);
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.black} />
@@ -467,7 +486,20 @@ const CameraScreen = ({ navigation, route }) => {
             />
           </TouchableOpacity>
           
-
+          {/* RAG Story Ideas Button */}
+          <TouchableOpacity 
+            style={styles.storyIdeasButton} 
+            onPress={handleOpenStoryIdeas}
+          >
+            <LinearGradient
+              colors={['#10B981', '#059669']}
+              style={styles.storyIdeasGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Ionicons name="bulb" size={18} color="#FFFFFF" />
+            </LinearGradient>
+          </TouchableOpacity>
           
           <TouchableOpacity style={styles.settingsButton}>
             <Ionicons name="settings" size={24} color={colors.white} />
@@ -568,6 +600,12 @@ const CameraScreen = ({ navigation, route }) => {
         )}
       </Modal>
 
+      {/* RAG Story Ideas Modal */}
+      <RAGStoryIdeas
+        visible={showStoryIdeas}
+        onClose={() => setShowStoryIdeas(false)}
+        onSelectIdea={handleSelectStoryIdea}
+      />
 
     </View>
   );
@@ -610,6 +648,16 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  storyIdeasButton: {
+    borderRadius: 22,
+  },
+  storyIdeasGradient: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },

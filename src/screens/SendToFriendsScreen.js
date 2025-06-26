@@ -9,6 +9,7 @@ import {
   Image,
   Alert,
   StatusBar,
+  TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,7 @@ import { useChats } from '../hooks/useChat';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { uploadChatImage } from '../utils/imageUploader';
+import RAGCaptionSuggestor from '../components/RAGCaptionSuggestor';
 
 const SendToFriendsScreen = ({ route, navigation }) => {
   const { photoUri, isFromGallery = false, previousScreen, chatId } = route.params;
@@ -26,6 +28,10 @@ const SendToFriendsScreen = ({ route, navigation }) => {
   const { user } = useAuth();
   const [selectedFriends, setSelectedFriends] = useState([]);
   const [sending, setSending] = useState(false);
+  
+  // RAG Feature Integration
+  const [caption, setCaption] = useState('');
+  const [showRAGCaptions, setShowRAGCaptions] = useState(false);
 
   const toggleFriendSelection = (friend) => {
     setSelectedFriends(prev => {
@@ -36,6 +42,17 @@ const SendToFriendsScreen = ({ route, navigation }) => {
         return [...prev, friend];
       }
     });
+  };
+
+  // RAG Handler Functions
+  const handleSelectCaption = (selectedCaption) => {
+    console.log('✅ RAG: Selected caption:', selectedCaption);
+    setCaption(selectedCaption);
+  };
+
+  const handleOpenRAGCaptions = () => {
+    console.log('🤖 RAG: Opening caption suggestions');
+    setShowRAGCaptions(true);
   };
 
   const uploadImage = async (uri) => {
@@ -109,13 +126,14 @@ const SendToFriendsScreen = ({ route, navigation }) => {
           console.log(`📎 Using media URL: ${imageUrl}`);
           
           // Send the image message with the validated URL
+          const messageContent = caption || (isFromGallery ? 'Sent a photo from gallery' : 'Sent a snap');
           const { error } = await supabase
             .from('messages')
             .insert([
               {
                 chat_id: chatId,
                 sender_id: user.id,
-                content: isFromGallery ? 'Sent a photo from gallery' : 'Sent a snap',
+                content: messageContent,
                 message_type: 'image',
                 media_url: imageUrl, // This is now guaranteed to be a proper HTTPS URL
                 disappear_after_seconds: isFromGallery ? null : 10,
@@ -237,6 +255,37 @@ const SendToFriendsScreen = ({ route, navigation }) => {
         <Image source={{ uri: photoUri }} style={styles.previewImage} />
       </View>
 
+      {/* RAG Caption Input Section */}
+      <View style={styles.captionSection}>
+        <View style={styles.captionInputContainer}>
+          <TextInput
+            style={styles.captionInput}
+            placeholder="Add a caption for your snap..."
+            placeholderTextColor={colors.textSecondary}
+            value={caption}
+            onChangeText={setCaption}
+            multiline
+            maxLength={200}
+          />
+        </View>
+        
+        <TouchableOpacity 
+          style={styles.ragButton}
+          onPress={handleOpenRAGCaptions}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={['#6366F1', '#8B5CF6']}
+            style={styles.ragButtonGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Ionicons name="sparkles" size={16} color="#FFFFFF" />
+            <Text style={styles.ragButtonText}>AI</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
+
       {/* Selected Count */}
       {selectedFriends.length > 0 && (
         <View style={styles.selectedCount}>
@@ -266,6 +315,15 @@ const SendToFriendsScreen = ({ route, navigation }) => {
           />
         )}
       </View>
+
+      {/* RAG Caption Suggestor Modal */}
+      <RAGCaptionSuggestor
+        visible={showRAGCaptions}
+        onClose={() => setShowRAGCaptions(false)}
+        onSelectCaption={handleSelectCaption}
+        contentType="study_group"
+        imageContext="Study group photo"
+      />
     </SafeAreaView>
   );
 };
@@ -324,6 +382,43 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
+  },
+  captionSection: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 12,
+  },
+  captionInputContainer: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 44,
+  },
+  captionInput: {
+    color: colors.white,
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  ragButton: {
+    borderRadius: 12,
+  },
+  ragButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 6,
+  },
+  ragButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   selectedCount: {
     paddingHorizontal: 20,
