@@ -97,6 +97,14 @@ const StoryPublishScreen = ({ navigation, route }) => {
       icon: '👥',
       color: colors.pink,
       type: 'campus'
+    },
+    {
+      id: 'music',
+      title: 'Music',
+      subtitle: 'Beats, jams & performances',
+      icon: '🎵',
+      color: colors.purple,
+      type: 'campus'
     }
   ];
 
@@ -199,6 +207,12 @@ const StoryPublishScreen = ({ navigation, route }) => {
         "Friends make everything better ❤️",
         "Social battery fully recharged! ⚡",
         "Good vibes with great people 🌟"
+      ],
+      music: [
+        "When the beat drops just right 🎵",
+        "Music is my therapy 🎧",
+        "Jamming to the perfect playlist 🎶",
+        "This song hits different 🔥"
       ]
     };
     

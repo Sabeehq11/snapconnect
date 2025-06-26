@@ -15,11 +15,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, theme } from '../utils/colors';
 import ImageWithFallback from './ImageWithFallback';
 import StoryTagIcon from './StoryTagIcon';
+import { useStories } from '../hooks/useStories';
+import { useAuth } from '../context/AuthContext';
 
 const CampusStoriesSection = ({ onStoryPress }) => {
   const [loading, setLoading] = useState(true);
   const [campusStories, setCampusStories] = useState([]);
   const [viewingStory, setViewingStory] = useState(null);
+  const { fetchCategoryStories } = useStories();
+  const { user } = useAuth();
 
   useEffect(() => {
     loadCampusStories();
@@ -28,81 +32,62 @@ const CampusStoriesSection = ({ onStoryPress }) => {
   const loadCampusStories = async () => {
     setLoading(true);
     
-    // Simulate loading delay
-    setTimeout(() => {
-      // Placeholder campus stories data - in real implementation, this would come from Supabase
-      const mockStories = [
-        {
-          id: 'campus-1',
-          user: 'Sarah M.',
-          username: 'sarahm_23',
-          tag: '📚 Study',
-          tagColor: colors.primary,
-          media_url: 'https://picsum.photos/300/400?random=1',
-          caption: 'Late night library grind with the squad! 📚✨',
-          views: 45,
-          created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-        },
-        {
-          id: 'campus-2',
-          user: 'Mike Chen',
-          username: 'mikechen',
-          tag: '🍕 Food',
-          tagColor: colors.secondary,
-          media_url: 'https://picsum.photos/300/400?random=2',
-          caption: 'Dining hall pasta hits different at 2am 🍝',
-          views: 67,
-          created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4 hours ago
-        },
-        {
-          id: 'campus-3',
-          user: 'Emma Rodriguez',
-          username: 'emmar_',
-          tag: '🏫 Campus Life',
-          tagColor: colors.accent,
-          media_url: 'https://picsum.photos/300/400?random=3',
-          caption: 'When you find the perfect study spot 🌸',
-          views: 89,
-          created_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(), // 6 hours ago
-        },
-        {
-          id: 'campus-4',
-          user: 'Alex Johnson',
-          username: 'alexj_fit',
-          tag: '💪 Fitness',
-          tagColor: colors.success,
-          media_url: 'https://picsum.photos/300/400?random=4',
-          caption: 'Campus gym grind before finals week 💪',
-          views: 34,
-          created_at: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(), // 8 hours ago
-        },
-        {
-          id: 'campus-5',
-          user: 'Zoe Park',
-          username: 'zoepark23',
-          tag: '🎨 Creative',
-          tagColor: colors.warning,
-          media_url: 'https://picsum.photos/300/400?random=5',
-          caption: 'Art project finally coming together! 🎨✨',
-          views: 56,
-          created_at: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(), // 10 hours ago
-        },
-        {
-          id: 'campus-6',
-          user: 'David Kim',
-          username: 'davidk_music',
-          tag: '🎵 Music',
-          tagColor: colors.purple,
-          media_url: 'https://picsum.photos/300/400?random=6',
-          caption: 'Jamming between classes 🎸🎵',
-          views: 78,
-          created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(), // 12 hours ago
-        }
-      ];
+    try {
+      // Fetch stories from all campus categories
+      const categories = ['study', 'food', 'fitness', 'events', 'dorm_life', 'social', 'music'];
+      const allCampusStories = [];
       
-      setCampusStories(mockStories);
+      for (const category of categories) {
+        const categoryStories = await fetchCategoryStories(category);
+        // Add category info to each story
+        const storiesWithCategory = categoryStories.map(story => ({
+          ...story,
+          category: category,
+          tag: getCategoryTag(category),
+          tagColor: getCategoryColor(category),
+        }));
+        allCampusStories.push(...storiesWithCategory);
+      }
+      
+      // Sort by creation date (newest first) and limit to 10 most recent
+      const sortedStories = allCampusStories
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 10);
+      
+      setCampusStories(sortedStories);
+    } catch (error) {
+      console.error('❌ Error loading campus stories:', error);
+      // Fallback to empty array if error
+      setCampusStories([]);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
+  };
+
+  const getCategoryTag = (category) => {
+    const tagMap = {
+      study: '📚 Study',
+      food: '🍕 Food',
+      fitness: '💪 Fitness',
+      events: '🎉 Events',
+      dorm_life: '🛋️ Dorm Life',
+      social: '👥 Social',
+      music: '🎵 Music',
+    };
+    return tagMap[category] || '🏫 Campus';
+  };
+
+  const getCategoryColor = (category) => {
+    const colorMap = {
+      study: colors.primary,
+      food: colors.secondary,
+      fitness: colors.success,
+      events: colors.warning,
+      dorm_life: colors.info,
+      social: colors.pink,
+      music: colors.purple,
+    };
+    return colorMap[category] || colors.accent;
   };
 
   const formatTimeAgo = (timestamp) => {
@@ -167,14 +152,16 @@ const CampusStoriesSection = ({ onStoryPress }) => {
         {/* Views indicator */}
         <View style={styles.viewsIndicator}>
           <Ionicons name="eye" size={12} color={colors.white} />
-          <Text style={styles.viewsText}>{item.views}</Text>
+          <Text style={styles.viewsText}>{item.views?.length || 0}</Text>
         </View>
       </View>
       
       <View style={styles.storyInfo}>
-        <Text style={styles.storyUser} numberOfLines={1}>{item.user}</Text>
+        <Text style={styles.storyUser} numberOfLines={1}>
+          {item.profiles?.display_name || item.user || 'Anonymous'}
+        </Text>
         <Text style={styles.storyCaption} numberOfLines={2}>
-          {item.caption}
+          {item.caption || 'Check out this story!'}
         </Text>
         <Text style={styles.storyTime}>{formatTimeAgo(item.created_at)}</Text>
       </View>
@@ -233,11 +220,13 @@ const CampusStoriesSection = ({ onStoryPress }) => {
                   <View style={styles.storyViewerUserInfo}>
                     <View style={styles.storyViewerAvatar}>
                       <Text style={styles.storyViewerAvatarText}>
-                        {viewingStory.user.charAt(0).toUpperCase()}
+                        {(viewingStory.profiles?.display_name || viewingStory.user || 'A').charAt(0).toUpperCase()}
                       </Text>
                     </View>
                     <View style={styles.storyViewerUserText}>
-                      <Text style={styles.storyViewerUserName}>{viewingStory.user}</Text>
+                      <Text style={styles.storyViewerUserName}>
+                        {viewingStory.profiles?.display_name || viewingStory.user || 'Anonymous'}
+                      </Text>
                       <Text style={styles.storyViewerTime}>
                         {formatTimeAgo(viewingStory.created_at)}
                       </Text>
@@ -282,18 +271,20 @@ const CampusStoriesSection = ({ onStoryPress }) => {
                   </View>
 
                   {/* Caption */}
-                  <View style={styles.storyViewerCaptionContainer}>
-                    <Text style={styles.storyViewerCaption}>
-                      {viewingStory.caption}
-                    </Text>
-                  </View>
+                  {viewingStory.caption && (
+                    <View style={styles.storyViewerCaptionContainer}>
+                      <Text style={styles.storyViewerCaption}>
+                        {viewingStory.caption}
+                      </Text>
+                    </View>
+                  )}
 
                   {/* Stats */}
                   <View style={styles.storyViewerStats}>
                     <View style={styles.storyViewerStat}>
                       <Ionicons name="eye" size={16} color={colors.textSecondary} />
                       <Text style={styles.storyViewerStatText}>
-                        {viewingStory.views} views
+                        {viewingStory.views?.length || 0} views
                       </Text>
                     </View>
                   </View>

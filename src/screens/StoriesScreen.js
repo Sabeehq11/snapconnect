@@ -341,6 +341,7 @@ const StoriesScreen = ({ navigation, route }) => {
               { id: 'events', title: '🎉 Events', color: colors.warning },
               { id: 'dorm_life', title: '🛋️ Dorm Life', color: colors.info },
               { id: 'social', title: '👥 Social', color: colors.pink },
+              { id: 'music', title: '🎵 Music', color: colors.purple },
             ].map((category) => (
               <TouchableOpacity
                 key={category.id}
