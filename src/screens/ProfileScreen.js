@@ -145,13 +145,6 @@ const ProfileScreen = ({ navigation }) => {
       badge: receivedRequests?.length || 0,
     },
     { 
-      icon: 'camera',
-      title: 'Memories', 
-      subtitle: 'Your saved snaps',
-      onPress: () => navigation.navigate('Memories'),
-      color: colors.accent,
-    },
-    { 
       icon: 'compass',
       title: 'Discover Friends', 
       subtitle: 'Find people you might know',

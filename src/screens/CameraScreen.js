@@ -28,6 +28,7 @@ import { uploadStoryImage } from '../utils/imageUploader';
 import * as FileSystem from 'expo-file-system';
 import { useFocusEffect } from '@react-navigation/native';
 import RAGStoryIdeas from '../components/RAGStoryIdeas';
+import TabbedImagePicker from '../components/TabbedImagePicker';
 
 const { width, height } = Dimensions.get('window');
 
@@ -43,6 +44,7 @@ const CameraScreen = ({ navigation, route }) => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [showPhotoPreview, setShowPhotoPreview] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
+  const [showTabbedPicker, setShowTabbedPicker] = useState(false);
   const cameraRef = useRef(null);
   const captureAnimation = useRef(new Animated.Value(1)).current;
   const recordingAnimation = useRef(new Animated.Value(1)).current;
@@ -83,6 +85,7 @@ const CameraScreen = ({ navigation, route }) => {
         console.log('🔄 Clearing modal state after returning from send action');
         setShowPhotoPreview(false);
         setShowImagePreview(false);
+        setShowTabbedPicker(false);
         setCapturedPhoto(null);
         setSelectedImage(null);
         
@@ -258,52 +261,15 @@ const CameraScreen = ({ navigation, route }) => {
     }
   };
 
-  const pickImage = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to access your photos!');
-        return;
-      }
+  const openImagePicker = () => {
+    setShowTabbedPicker(true);
+  };
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.9,
-        selectionLimit: 1,
-      });
-
-      console.log('Image picker result:', result);
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        // ✅ REQUESTED LOGGING: Log picked image URI with detailed analysis
-        const pickedUri = result.assets[0].uri;
-        console.log('📷 PICKED IMAGE DETAILED ANALYSIS:');
-        console.log('   - Full URI:', pickedUri);
-        console.log('   - URI type:', typeof pickedUri);
-        console.log('   - URI length:', pickedUri?.length || 'undefined');
-        console.log('   - Has file:// prefix:', pickedUri?.startsWith('file://') ? '✅ YES' : '❌ NO');
-        console.log('   - Has content:// prefix:', pickedUri?.startsWith('content://') ? '✅ YES' : '❌ NO');
-        console.log('   - Has http:// prefix:', pickedUri?.startsWith('http://') ? '✅ YES' : '❌ NO');
-        console.log('   - Has https:// prefix:', pickedUri?.startsWith('https://') ? '✅ YES' : '❌ NO');
-        console.log('   - URI protocol detected:', pickedUri?.split('://')[0] || 'NONE');
-        console.log('   - Full asset object:', result.assets[0]);
-        
-        // Log additional asset properties
-        const asset = result.assets[0];
-        if (asset.width) console.log('   - Image width:', asset.width);
-        if (asset.height) console.log('   - Image height:', asset.height);
-        if (asset.fileSize) console.log('   - File size:', asset.fileSize, 'bytes');
-        if (asset.type) console.log('   - MIME type:', asset.type);
-        
-        setSelectedImage(pickedUri);
-        setShowImagePreview(true);
-      }
-    } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
-    }
+  const handleImageSelect = (imageUri) => {
+    console.log('📷 Image selected from tabbed picker:', imageUri);
+    setSelectedImage(imageUri);
+    setShowImagePreview(true);
+    setShowTabbedPicker(false);
   };
 
   // Remove this function as options are now handled in PhotoPreview
@@ -315,6 +281,7 @@ const CameraScreen = ({ navigation, route }) => {
     
     setShowPhotoPreview(false);
     setShowImagePreview(false);
+    setShowTabbedPicker(false);
     setCapturedPhoto(null);
     setSelectedImage(null);
     
@@ -341,6 +308,7 @@ const CameraScreen = ({ navigation, route }) => {
     // Close modals
     setShowPhotoPreview(false);
     setShowImagePreview(false);
+    setShowTabbedPicker(false);
     
     // Clear state
     setCapturedPhoto(null);
@@ -361,6 +329,7 @@ const CameraScreen = ({ navigation, route }) => {
   const handleCancelPhoto = () => {
     setShowPhotoPreview(false);
     setShowImagePreview(false);
+    setShowTabbedPicker(false);
     setCapturedPhoto(null);
     setSelectedImage(null);
   };
@@ -500,7 +469,7 @@ const CameraScreen = ({ navigation, route }) => {
         {/* Bottom Controls */}
         <View style={styles.bottomControls}>
           {/* Gallery Button */}
-          <TouchableOpacity style={styles.galleryButton} onPress={pickImage}>
+          <TouchableOpacity style={styles.galleryButton} onPress={openImagePicker}>
             <View style={styles.galleryPreview}>
               <Ionicons name="images" size={20} color={colors.white} />
             </View>
@@ -564,6 +533,7 @@ const CameraScreen = ({ navigation, route }) => {
             onSendToFriends={handleSendToFriends}
             onPostToStory={handlePostToStory}
             onCancel={handleCancelPhoto}
+            isFromCamera={true}
           />
         )}
       </Modal>
@@ -580,6 +550,7 @@ const CameraScreen = ({ navigation, route }) => {
             onSendToFriends={handleSendToFriends}
             onPostToStory={handlePostToStory}
             onCancel={handleCancelPhoto}
+            isFromCamera={false}
           />
         )}
       </Modal>
@@ -589,6 +560,13 @@ const CameraScreen = ({ navigation, route }) => {
         visible={showStoryIdeas}
         onClose={() => setShowStoryIdeas(false)}
         onSelectIdea={handleSelectStoryIdea}
+      />
+
+      {/* Tabbed Image Picker Modal */}
+      <TabbedImagePicker
+        visible={showTabbedPicker}
+        onClose={() => setShowTabbedPicker(false)}
+        onSelectImage={handleImageSelect}
       />
 
     </View>

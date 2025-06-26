@@ -16,6 +16,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { colors, theme } from '../utils/colors';
 import ImageWithFallback from '../components/ImageWithFallback';
+import { supabase } from '../../lib/supabase';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 const ITEM_SIZE = (width - 60) / 3; // 3 columns with margins
@@ -30,66 +32,50 @@ const MemoriesScreen = ({ navigation }) => {
     loadMemories();
   }, []);
 
+  // Reload memories when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      loadMemories();
+    }, [])
+  );
+
   const loadMemories = async () => {
+    if (!user) {
+      console.log('📸 No user found, skipping memories load');
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     
-    // Simulate loading delay
-    setTimeout(() => {
-      // Mock memories data - in real implementation, this would come from Supabase
-      const mockMemories = [
-        {
-          id: 'memory-1',
-          media_url: 'https://picsum.photos/400/600?random=10',
-          media_type: 'image',
-          caption: 'Best study session ever! 📚',
-          created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-          saved_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        {
-          id: 'memory-2',
-          media_url: 'https://picsum.photos/400/600?random=11',
-          media_type: 'image',
-          caption: 'Campus sunset vibes 🌅',
-          created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
-          saved_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        {
-          id: 'memory-3',
-          media_url: 'https://picsum.photos/400/600?random=12',
-          media_type: 'image',
-          caption: 'Squad goals achieved! 🎯',
-          created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago
-          saved_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        {
-          id: 'memory-4',
-          media_url: 'https://picsum.photos/400/600?random=13',
-          media_type: 'image',
-          caption: 'Coffee shop coding session ☕',
-          created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 1 week ago
-          saved_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        {
-          id: 'memory-5',
-          media_url: 'https://picsum.photos/400/600?random=14',
-          media_type: 'image',
-          caption: 'Late night dorm adventures 🌙',
-          created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), // 10 days ago
-          saved_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        {
-          id: 'memory-6',
-          media_url: 'https://picsum.photos/400/600?random=15',
-          media_type: 'image',
-          caption: 'Game day spirit! 🏈',
-          created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(), // 2 weeks ago
-          saved_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-      ];
+    try {
+      console.log('📸 Loading memories from database for user:', user.id);
       
-      setMemories(mockMemories);
+      const { data, error } = await supabase
+        .from('memories')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error loading memories:', error);
+        throw error;
+      }
+
+      console.log('✅ Loaded memories from database:', data?.length || 0);
+      setMemories(data || []);
+      
+    } catch (error) {
+      console.error('❌ Failed to load memories:', error);
+      Alert.alert(
+        'Failed to Load Memories',
+        'Could not load your saved memories. Please try again.',
+        [{ text: 'OK' }]
+      );
+      setMemories([]);
+    } finally {
       setLoading(false);
-    }, 800);
+    }
   };
 
   const formatDate = (timestamp) => {
@@ -116,7 +102,7 @@ const MemoriesScreen = ({ navigation }) => {
     setSelectedMemory(memory);
   };
 
-  const handleDeleteMemory = (memoryId) => {
+  const handleDeleteMemory = async (memoryId) => {
     Alert.alert(
       'Delete Memory',
       'Are you sure you want to delete this memory?',
@@ -125,9 +111,32 @@ const MemoriesScreen = ({ navigation }) => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setMemories(prev => prev.filter(m => m.id !== memoryId));
-            setSelectedMemory(null);
+          onPress: async () => {
+            try {
+              console.log('🗑️ Deleting memory:', memoryId);
+              
+              const { error } = await supabase
+                .from('memories')
+                .delete()
+                .eq('id', memoryId)
+                .eq('user_id', user.id); // Extra security check
+
+              if (error) {
+                console.error('❌ Error deleting memory:', error);
+                throw error;
+              }
+
+              console.log('✅ Memory deleted successfully');
+              
+              // Update local state
+              setMemories(prev => prev.filter(m => m.id !== memoryId));
+              setSelectedMemory(null);
+              
+              Alert.alert('Deleted', 'Memory deleted successfully');
+            } catch (error) {
+              console.error('❌ Failed to delete memory:', error);
+              Alert.alert('Error', 'Failed to delete memory. Please try again.');
+            }
           }
         }
       ]
@@ -223,7 +232,7 @@ const MemoriesScreen = ({ navigation }) => {
           </LinearGradient>
           <Text style={styles.emptyTitle}>No Memories Yet</Text>
           <Text style={styles.emptySubtitle}>
-            Save your favorite snaps to see them here
+            Take photos with the camera and save them to memories to see them here
           </Text>
         </View>
       ) : (
