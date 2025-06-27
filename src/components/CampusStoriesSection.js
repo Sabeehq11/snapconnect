@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  FlatList,
+  ScrollView,
   TouchableOpacity,
   StyleSheet,
   Image,
@@ -183,14 +183,17 @@ const CampusStoriesSection = ({ onStoryPress }) => {
           <Text style={styles.loadingText}>Loading campus stories...</Text>
         </View>
       ) : (
-        <FlatList
-          data={campusStories}
-          renderItem={renderCampusStory}
-          keyExtractor={(item) => item.id}
-          horizontal
+        <ScrollView 
+          horizontal 
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.storiesContainer}
-        />
+        >
+          {campusStories.map((item, index) => (
+            <View key={item.id}>
+              {renderCampusStory({ item, index })}
+            </View>
+          ))}
+        </ScrollView>
       )}
 
       {/* Story Viewer Modal */}

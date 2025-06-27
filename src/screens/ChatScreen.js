@@ -28,6 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import ImageWithFallback from '../components/ImageWithFallback';
 import QuickDiagnosticsPanel from '../components/QuickDiagnosticsPanel';
+import RAGTextSuggestions from '../components/RAGTextSuggestions';
 import { runFullCleanup } from '../utils/runCleanup';
 
 const { width, height } = Dimensions.get('window');
@@ -44,6 +45,7 @@ const ChatScreen = ({ route, navigation }) => {
   const [imageLoadingStates, setImageLoadingStates] = useState({});
   const [imageErrors, setImageErrors] = useState({});
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [showTextSuggestions, setShowTextSuggestions] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const flatListRef = useRef(null);
   const textInputRef = useRef(null);
@@ -286,6 +288,19 @@ const ChatScreen = ({ route, navigation }) => {
       screen: 'Camera', 
       params: { chatId, chatName }
     });
+  };
+
+  const handleShowTextSuggestions = () => {
+    setShowTextSuggestions(true);
+  };
+
+  const handleSelectSuggestion = (suggestion) => {
+    setNewMessage(suggestion);
+    setShowTextSuggestions(false);
+    // Focus on text input after selecting suggestion
+    setTimeout(() => {
+      textInputRef.current?.focus();
+    }, 100);
   };
 
   const handleViewMessage = async (message) => {
@@ -573,6 +588,13 @@ const ChatScreen = ({ route, navigation }) => {
                 >
                   <Ionicons name="camera" size={24} color={colors.primary} />
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.ragButton}
+                  onPress={handleShowTextSuggestions}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="bulb" size={20} color={colors.accent} />
+                </TouchableOpacity>
                 <TextInput
                   ref={textInputRef}
                   style={styles.textInput}
@@ -669,6 +691,19 @@ const ChatScreen = ({ route, navigation }) => {
         {showDiagnostics && (
           <QuickDiagnosticsPanel onClose={() => setShowDiagnostics(false)} />
         )}
+
+        {/* RAG Text Suggestions Modal */}
+        <RAGTextSuggestions
+          visible={showTextSuggestions}
+          onClose={() => setShowTextSuggestions(false)}
+          onSelectSuggestion={handleSelectSuggestion}
+          chatContext={{
+            friendName: chatName,
+            isGroupChat: isGroupChat,
+            participants: participants
+          }}
+          recentMessages={messages.slice(-10)} // Pass last 10 messages for context
+        />
 
         {/* Diagnostic Button - Temporary for debugging */}
         <TouchableOpacity 
@@ -818,6 +853,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginRight: theme.spacing.sm,
+  },
+  ragButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
     marginRight: theme.spacing.sm,
   },
   messageViewer: {

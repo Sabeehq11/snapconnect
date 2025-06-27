@@ -29,6 +29,7 @@ import * as FileSystem from 'expo-file-system';
 import { useFocusEffect } from '@react-navigation/native';
 import RAGStoryIdeas from '../components/RAGStoryIdeas';
 import TabbedImagePicker from '../components/TabbedImagePicker';
+import ARFilters, { FilterOverlay } from '../components/ARFilters';
 
 const { width, height } = Dimensions.get('window');
 
@@ -51,6 +52,10 @@ const CameraScreen = ({ navigation, route }) => {
   
   // RAG Features
   const [showStoryIdeas, setShowStoryIdeas] = useState(false);
+  
+  // AR Filters
+  const [showARFilters, setShowARFilters] = useState(false);
+  const [currentARFilter, setCurrentARFilter] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -389,6 +394,16 @@ const CameraScreen = ({ navigation, route }) => {
     setShowStoryIdeas(true);
   };
 
+  const handleOpenARFilters = () => {
+    console.log('✨ AR: Opening filters modal');
+    setShowARFilters(true);
+  };
+
+  const handleARFilterSelect = (filter) => {
+    console.log('✨ AR: Selected filter:', filter);
+    setCurrentARFilter(filter);
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.black} />
@@ -451,6 +466,25 @@ const CameraScreen = ({ navigation, route }) => {
               end={{ x: 1, y: 1 }}
             >
               <Ionicons name="bulb" size={18} color="#FFFFFF" />
+            </LinearGradient>
+          </TouchableOpacity>
+          
+          {/* AR Filters Button */}
+          <TouchableOpacity 
+            style={[styles.arFiltersButton, currentARFilter && styles.arFiltersActive]} 
+            onPress={handleOpenARFilters}
+          >
+            <LinearGradient
+              colors={currentARFilter ? ['#E91E63', '#C2185B'] : ['#9C27B0', '#7B1FA2']}
+              style={styles.arFiltersGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Ionicons 
+                name={currentARFilter ? "star" : "glasses-outline"} 
+                size={18} 
+                color="#FFFFFF" 
+              />
             </LinearGradient>
           </TouchableOpacity>
           
@@ -519,6 +553,9 @@ const CameraScreen = ({ navigation, route }) => {
             </LinearGradient>
           </TouchableOpacity>
         </View>
+
+        {/* AR Filter Overlay */}
+        <FilterOverlay filter={currentARFilter} style={styles.filterOverlay} />
       </CameraView>
 
       {/* Photo Preview Modal */}
@@ -567,6 +604,14 @@ const CameraScreen = ({ navigation, route }) => {
         visible={showTabbedPicker}
         onClose={() => setShowTabbedPicker(false)}
         onSelectImage={handleImageSelect}
+      />
+
+      {/* AR Filters Modal */}
+      <ARFilters
+        isVisible={showARFilters}
+        onClose={() => setShowARFilters(false)}
+        onFilterSelect={handleARFilterSelect}
+        currentFilter={currentARFilter?.id}
       />
 
     </View>
@@ -622,6 +667,27 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  arFiltersButton: {
+    borderRadius: 22,
+  },
+  arFiltersActive: {
+    transform: [{ scale: 1.1 }],
+  },
+  arFiltersGradient: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
   },
 
   sideControls: {

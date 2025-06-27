@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useFriends } from './useFriends';
@@ -16,7 +16,7 @@ export const useStories = () => {
     }
   }, [user, friends]);
 
-  const fetchStories = async () => {
+  const fetchStories = useCallback(async () => {
     if (!user) return;
     
     try {
@@ -117,12 +117,14 @@ export const useStories = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, friends]);
 
   const createStory = async (mediaUrl, mediaType = 'image', caption = '', category = 'my_story', storyType = 'personal') => {
     if (!user) throw new Error('User not authenticated');
 
     try {
+      console.log('📖 Creating story:', { mediaUrl, mediaType, caption, category, storyType });
+      
       const { data, error } = await supabase
         .from('stories')
         .insert([
@@ -140,12 +142,17 @@ export const useStories = () => {
 
       if (error) throw error;
 
-      // Refresh stories after creating
-      await fetchStories();
+      console.log('✅ Story created successfully:', data);
+      
+      // Add small delay before refreshing to ensure database consistency
+      setTimeout(async () => {
+        console.log('🔄 Refreshing stories after creation');
+        await fetchStories();
+      }, 500);
       
       return data;
     } catch (error) {
-      console.error('Error creating story:', error);
+      console.error('❌ Error creating story:', error);
       throw error;
     }
   };

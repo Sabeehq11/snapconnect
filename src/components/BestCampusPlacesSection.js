@@ -29,6 +29,7 @@ const BestCampusPlacesSection = ({ onPlacePress }) => {
         category: 'Study',
         hours: '24/7',
         popularity: 95,
+        rating: 4.8,
         color: colors.primary,
       },
       {
@@ -39,6 +40,7 @@ const BestCampusPlacesSection = ({ onPlacePress }) => {
         category: 'Food & Drink',
         hours: '6 AM - 10 PM',
         popularity: 88,
+        rating: 4.5,
         color: colors.warning,
       },
       {
@@ -49,6 +51,7 @@ const BestCampusPlacesSection = ({ onPlacePress }) => {
         category: 'Social',
         hours: '8 AM - 11 PM',
         popularity: 92,
+        rating: 4.7,
         color: colors.accent,
       },
       {
@@ -59,6 +62,7 @@ const BestCampusPlacesSection = ({ onPlacePress }) => {
         category: 'Dining',
         hours: '7 AM - 9 PM',
         popularity: 85,
+        rating: 4.2,
         color: colors.secondary,
       },
       {
@@ -69,6 +73,7 @@ const BestCampusPlacesSection = ({ onPlacePress }) => {
         category: 'Fitness',
         hours: '5 AM - 11 PM',
         popularity: 90,
+        rating: 4.6,
         color: colors.success,
       },
       {
@@ -79,6 +84,7 @@ const BestCampusPlacesSection = ({ onPlacePress }) => {
         category: 'Outdoor',
         hours: 'Dawn - Dusk',
         popularity: 78,
+        rating: 4.3,
         color: colors.teal,
       },
     ];
@@ -131,6 +137,19 @@ const BestCampusPlacesSection = ({ onPlacePress }) => {
           <Text style={styles.placeDescription} numberOfLines={2}>
             {item.description}
           </Text>
+          <View style={styles.placeRating}>
+            <View style={styles.starContainer}>
+              {[...Array(5)].map((_, i) => (
+                <Ionicons
+                  key={i}
+                  name={i < Math.floor(item.rating) ? 'star' : 'star-outline'}
+                  size={12}
+                  color={i < Math.floor(item.rating) ? '#FFD700' : 'rgba(255, 255, 255, 0.3)'}
+                />
+              ))}
+            </View>
+            <Text style={styles.ratingText}>{item.rating}</Text>
+          </View>
           <View style={styles.placeFooter}>
             <View style={styles.categoryBadge}>
               <Text style={styles.categoryText}>{item.category}</Text>
@@ -254,7 +273,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
     lineHeight: 18,
-    marginBottom: 12,
+    marginBottom: 8,
+  },
+  placeRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  starContainer: {
+    flexDirection: 'row',
+    marginRight: 8,
+  },
+  ratingText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.white,
   },
   placeFooter: {
     flexDirection: 'row',

@@ -13,6 +13,7 @@ import {
   Alert,
   BackHandler,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +25,10 @@ import RAGStoryIdeas from '../components/RAGStoryIdeas';
 import BestCampusPlacesSection from '../components/BestCampusPlacesSection';
 import RAGStoryCaptionSuggestor from '../components/RAGStoryCaptionSuggestor';
 import StoryTagSelector from '../components/StoryTagSelector';
+import SchoolEventsCalendar from '../components/SchoolEventsCalendar';
+import CrisisResourcesSection from '../components/CrisisResourcesSection';
+import FriendsAcademicStatus from '../components/FriendsAcademicStatus';
+import MoodTracker from '../components/MoodTracker';
 
 const { width, height } = Dimensions.get('window');
 
@@ -41,46 +46,52 @@ const StoriesScreen = ({ navigation, route }) => {
 
   // Handle navigation params (when returning from camera with story or after publishing)
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      // Get params from route directly
-      const params = route.params;
+    // Get params from route directly
+    const params = route.params;
+    
+    // Handle campus story creation flow
+    if (params?.newCampusStory) {
+      // User just created a story for campus posting
+      const storyData = params.newCampusStory;
+      setPendingStoryData(storyData);
+      setSelectedStoryTag(storyData.tag);
+      setShowStoryCaptionSuggestor(true);
       
-      // Handle campus story creation flow
-      if (params?.newCampusStory) {
-        // User just created a story for campus posting
-        const storyData = params.newCampusStory;
-        setPendingStoryData(storyData);
-        setSelectedStoryTag(storyData.tag);
-        setShowStoryCaptionSuggestor(true);
-        
-        // Clear the params
-        navigation.setParams({ newCampusStory: undefined });
-      }
+      // Clear the params
+      navigation.setParams({ newCampusStory: undefined });
+    }
+    
+    // Handle story published feedback
+    if (params?.storyPublished) {
+      const publishedTo = params.publishedTo || 'your story';
       
-      // Handle story published feedback
-      if (params?.storyPublished) {
-        const publishedTo = params.publishedTo || 'your story';
-        
-        // Refresh stories to show the new one
-        fetchStories();
-        
-        // Show success feedback
-        Alert.alert(
-          '🎉 Story Published!', 
-          `Your story has been posted to ${publishedTo} and is now live!`,
-          [{ text: 'Awesome!', style: 'default' }]
-        );
-        
-        // Clear the params
-        navigation.setParams({ 
-          storyPublished: undefined,
-          publishedTo: undefined 
-        });
-      }
-    });
+      // Show success feedback
+      Alert.alert(
+        '🎉 Story Published!', 
+        `Your story has been posted to ${publishedTo} and is now live!`,
+        [{ text: 'Awesome!', style: 'default' }]
+      );
+      
+      // Clear the params
+      navigation.setParams({ 
+        storyPublished: undefined,
+        publishedTo: undefined 
+      });
+    }
+  }, [navigation, route.params]);
 
-    return unsubscribe;
-  }, [navigation, fetchStories, route.params]);
+  // Refresh stories whenever screen comes into focus (consolidated focus handler)
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('📖 Stories screen focused - refreshing stories');
+      // Add small delay to ensure any pending story creation completes
+      const timer = setTimeout(() => {
+        fetchStories();
+      }, 300);
+      
+      return () => clearTimeout(timer);
+    }, [fetchStories]) // fetchStories is now stable thanks to useCallback
+  );
 
   // Stories are now managed by the hook, no need for local fetching
 
@@ -308,23 +319,36 @@ const StoriesScreen = ({ navigation, route }) => {
         </View>
       </View>
 
+      {/* Stories Row - Outside ScrollView to avoid nesting */}
+      <View style={styles.storiesSection}>
+        <FlatList
+          data={stories}
+          renderItem={renderStoryItem}
+          keyExtractor={(item) => item?.id || 'story'}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.storiesContainer}
+          refreshing={loading}
+          onRefresh={fetchStories}
+        />
+      </View>
+
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Stories Row */}
-        <View style={styles.storiesSection}>
-          <FlatList
-            data={stories}
-            renderItem={renderStoryItem}
-            keyExtractor={(item) => item?.id || 'story'}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.storiesContainer}
-            refreshing={loading}
-            onRefresh={fetchStories}
-          />
-        </View>
 
         {/* Best Campus Places Section */}
         <BestCampusPlacesSection onPlacePress={handlePlacePress} />
+
+        {/* School Events Calendar */}
+        <SchoolEventsCalendar />
+
+        {/* Daily Mood Tracker */}
+        <MoodTracker />
+
+        {/* Friends Academic Status */}
+        <FriendsAcademicStatus />
+
+        {/* Crisis Resources Section */}
+        <CrisisResourcesSection />
 
         {/* Story Categories Section */}
         <View style={styles.categoriesSection}>
