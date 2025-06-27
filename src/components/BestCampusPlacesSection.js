@@ -178,6 +178,14 @@ const BestCampusPlacesSection = ({ onPlacePress }) => {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.placesContainer}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={3}
+        windowSize={5}
+        getItemLayout={(data, index) => ({
+          length: 196, // 180 width + 16 margin
+          offset: 196 * index,
+          index,
+        })}
       />
     </View>
   );

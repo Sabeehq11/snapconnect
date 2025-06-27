@@ -202,12 +202,15 @@ const SchoolEventsCalendar = () => {
         </TouchableOpacity>
       </View>
       
-      <ScrollView 
-        style={styles.eventsContainer}
-        showsVerticalScrollIndicator={false}
-        nestedScrollEnabled={true}
-      >
-        {getUpcomingEvents().map(renderEventItem)}
+      <View style={styles.eventsContainer}>
+                {getUpcomingEvents().slice(0, 3).map(renderEventItem)}
+        
+        {getUpcomingEvents().length > 3 && (
+          <TouchableOpacity style={styles.viewMoreButton}>
+            <Text style={styles.viewMoreText}>View {getUpcomingEvents().length - 3} more events</Text>
+            <Ionicons name="chevron-down" size={16} color={colors.primary} />
+          </TouchableOpacity>
+        )}
         
         {getUpcomingEvents().length === 0 && (
           <View style={styles.emptyState}>
@@ -215,7 +218,7 @@ const SchoolEventsCalendar = () => {
             <Text style={styles.emptyStateText}>No upcoming events</Text>
           </View>
         )}
-      </ScrollView>
+      </View>
     </View>
   );
 };
@@ -259,6 +262,24 @@ const styles = StyleSheet.create({
   },
   eventsContainer: {
     maxHeight: 300,
+  },
+  viewMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    borderRadius: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+  },
+  viewMoreText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+    marginRight: 6,
   },
   eventCard: {
     marginBottom: 12,

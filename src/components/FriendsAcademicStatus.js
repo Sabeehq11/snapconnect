@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  FlatList,
   TouchableOpacity,
   StyleSheet,
   Alert,
@@ -138,6 +137,7 @@ const FriendsAcademicStatus = () => {
 
   const renderAcademicUpdate = ({ item }) => (
     <TouchableOpacity
+      key={item.id}
       style={styles.updateCard}
       activeOpacity={0.8}
       onPress={() => handleUpdatePress(item)}
@@ -208,14 +208,16 @@ const FriendsAcademicStatus = () => {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={academicUpdates}
-        renderItem={renderAcademicUpdate}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.updatesList}
-        nestedScrollEnabled={true}
-      />
+      <View style={styles.updatesList}>
+        {academicUpdates.slice(0, 3).map(item => renderAcademicUpdate({ item }))}
+        
+        {academicUpdates.length > 3 && (
+          <TouchableOpacity style={styles.viewMoreButton}>
+            <Text style={styles.viewMoreText}>View {academicUpdates.length - 3} more updates</Text>
+            <Ionicons name="chevron-down" size={16} color={colors.primary} />
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 };
@@ -259,6 +261,24 @@ const styles = StyleSheet.create({
   },
   updatesList: {
     maxHeight: 300,
+  },
+  viewMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    borderRadius: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+  },
+  viewMoreText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+    marginRight: 6,
   },
   updateCard: {
     marginBottom: 12,

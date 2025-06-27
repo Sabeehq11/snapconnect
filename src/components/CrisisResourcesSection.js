@@ -124,9 +124,12 @@ const CrisisResourcesSection = () => {
     );
   };
 
+  // Calculate content height dynamically
+  const contentHeight = crisisResources.length * 80 + 200; // ~80px per item + spacing/headers
+  
   const animatedHeight = animation.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 400],
+    outputRange: [0, contentHeight],
   });
 
   const animatedOpacity = animation.interpolate({
