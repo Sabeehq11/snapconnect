@@ -29,6 +29,7 @@ import { supabase } from '../../lib/supabase';
 import ImageWithFallback from '../components/ImageWithFallback';
 import QuickDiagnosticsPanel from '../components/QuickDiagnosticsPanel';
 import RAGTextSuggestions from '../components/RAGTextSuggestions';
+import DisappearingMessagesModal from '../components/DisappearingMessagesModal';
 import { runFullCleanup } from '../utils/runCleanup';
 
 const { width, height } = Dimensions.get('window');
@@ -36,7 +37,7 @@ const { width, height } = Dimensions.get('window');
 const ChatScreen = ({ route, navigation }) => {
   const { chatId, chatName, isGroupChat = false, participants = [] } = route.params || {};
   const { user } = useAuth();
-  const { messages, loading, sendMessage, clearChatHistory, deleteMessage } = useChat(chatId);
+  const { messages, loading, sendMessage, clearChatHistory, deleteMessage, disappearingSetting, updateDisappearingSetting, markMessageAsDisappeared } = useChat(chatId);
   const { markChatAsRead } = useChats();
   const [newMessage, setNewMessage] = useState('');
   const [viewingMessage, setViewingMessage] = useState(null);
@@ -46,13 +47,14 @@ const ChatScreen = ({ route, navigation }) => {
   const [imageErrors, setImageErrors] = useState({});
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [showTextSuggestions, setShowTextSuggestions] = useState(false);
+  const [showDisappearingModal, setShowDisappearingModal] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const flatListRef = useRef(null);
   const textInputRef = useRef(null);
   const insets = useSafeAreaInsets();
 
   const handleChatOptions = () => {
-    const options = ['Clear Chat History', 'Cancel'];
+    const options = ['Disappearing Messages', 'Clear Chat History', 'Cancel'];
     if (!isGroupChat) {
       options.unshift('View Profile');
     }
@@ -66,6 +68,8 @@ const ChatScreen = ({ route, navigation }) => {
         onPress: () => {
           if (option === 'View Profile') {
             handleViewProfile();
+          } else if (option === 'Disappearing Messages') {
+            setShowDisappearingModal(true);
           } else if (option === 'Clear Chat History') {
             handleClearHistory();
           }
@@ -138,7 +142,27 @@ const ChatScreen = ({ route, navigation }) => {
     );
   };
 
+  const handleDisappearingSettingChange = (newSetting) => {
+    // The modal will handle the actual update, we just need to update local state
+    console.log('Disappearing setting changed to:', newSetting);
+  };
+
+  // Get disappearing mode icon and color
+  const getDisappearingIndicator = () => {
+    switch (disappearingSetting) {
+      case 'after_viewing':
+        return { icon: 'eye-outline', color: colors.primary };
+      case '24_hours':
+        return { icon: 'time-outline', color: colors.accent };
+      case 'none':
+      default:
+        return null;
+    }
+  };
+
   useEffect(() => {
+    const disappearingIndicator = getDisappearingIndicator();
+    
     navigation.setOptions({
       headerTitle: chatName,
       headerShown: true,
@@ -151,12 +175,20 @@ const ChatScreen = ({ route, navigation }) => {
         fontWeight: theme.typography.fontWeights.semibold,
       },
       headerRight: () => (
-        <TouchableOpacity
-          style={{ marginRight: 16 }}
-          onPress={handleChatOptions}
-        >
-          <Ionicons name="ellipsis-vertical" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16 }}>
+          {disappearingIndicator && (
+            <View style={{ marginRight: 12, alignItems: 'center' }}>
+              <Ionicons 
+                name={disappearingIndicator.icon} 
+                size={20} 
+                color={disappearingIndicator.color} 
+              />
+            </View>
+          )}
+          <TouchableOpacity onPress={handleChatOptions}>
+            <Ionicons name="ellipsis-vertical" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
       ),
     });
 
@@ -164,7 +196,7 @@ const ChatScreen = ({ route, navigation }) => {
     if (chatId) {
       markChatAsRead(chatId);
     }
-  }, [navigation, chatName, chatId, markChatAsRead, isGroupChat, participants]);
+  }, [navigation, chatName, chatId, markChatAsRead, isGroupChat, participants, disappearingSetting]);
 
   // Run cleanup once when screen loads
   useEffect(() => {
@@ -334,17 +366,26 @@ const ChatScreen = ({ route, navigation }) => {
             viewed_by: newViewedBy
           })
           .eq('id', message.id);
+
+        // If this message should disappear after viewing, mark it as disappeared
+        if (message.max_views && message.view_count + 1 >= message.max_views) {
+          await markMessageAsDisappeared(message.id);
+          Alert.alert('Message Disappeared', 'This message has been viewed and will now disappear');
+          return;
+        }
       }
 
       // Show the message in full screen
       setViewingMessage(message);
 
-      // Start disappear timer
-      const timer = setTimeout(() => {
-        startDisappearAnimation();
-      }, message.disappear_after_seconds * 1000);
-      
-      setViewTimer(timer);
+      // Start disappear timer if specified
+      if (message.disappear_after_seconds) {
+        const timer = setTimeout(() => {
+          startDisappearAnimation();
+        }, message.disappear_after_seconds * 1000);
+        
+        setViewTimer(timer);
+      }
 
     } catch (error) {
       console.error('Error updating message view:', error);
@@ -703,6 +744,15 @@ const ChatScreen = ({ route, navigation }) => {
             participants: participants
           }}
           recentMessages={messages.slice(-10)} // Pass last 10 messages for context
+        />
+
+        {/* Disappearing Messages Settings Modal */}
+        <DisappearingMessagesModal
+          visible={showDisappearingModal}
+          onClose={() => setShowDisappearingModal(false)}
+          chatId={chatId}
+          currentSetting={disappearingSetting}
+          onSettingChange={handleDisappearingSettingChange}
         />
 
         {/* Diagnostic Button - Temporary for debugging */}

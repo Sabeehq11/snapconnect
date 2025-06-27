@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 export const useChat = (chatId) => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [disappearingSetting, setDisappearingSetting] = useState('none');
   const { user } = useAuth();
   const subscriptionRef = useRef(null);
 
@@ -17,23 +18,42 @@ export const useChat = (chatId) => {
 
     if (!chatId || !user) return;
 
-    // Fetch initial messages
+    // Fetch initial messages and chat settings
     const fetchMessages = async () => {
-      const { data, error } = await supabase
-        .from('messages')
-        .select(`
-          *,
-          sender:users!sender_id(display_name, email)
-        `)
-        .eq('chat_id', chatId)
-        .order('created_at', { ascending: true });
+      try {
+        // Fetch messages
+        const { data: messagesData, error: messagesError } = await supabase
+          .from('messages')
+          .select(`
+            *,
+            sender:users!sender_id(display_name, email)
+          `)
+          .eq('chat_id', chatId)
+          .order('created_at', { ascending: true });
 
-      if (error) {
-        console.error('Error fetching messages:', error);
-      } else {
-        setMessages(data || []);
+        if (messagesError) {
+          console.error('Error fetching messages:', messagesError);
+        } else {
+          setMessages(messagesData || []);
+        }
+
+        // Fetch chat settings
+        const { data: chatData, error: chatError } = await supabase
+          .from('chats')
+          .select('disappearing_setting')
+          .eq('id', chatId)
+          .single();
+
+        if (chatError) {
+          console.error('Error fetching chat settings:', chatError);
+        } else {
+          setDisappearingSetting(chatData?.disappearing_setting || 'none');
+        }
+      } catch (error) {
+        console.error('Error in fetchMessages:', error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchMessages();
@@ -76,8 +96,28 @@ export const useChat = (chatId) => {
     };
   }, [chatId, user?.id]); // Only depend on chatId and user.id
 
-  const sendMessage = async (content, messageType = 'text', mediaUrl = null, disappearAfterSeconds = 10, maxViews = 1) => {
+  const sendMessage = async (content, messageType = 'text', mediaUrl = null) => {
     if (!user || !chatId) return;
+
+    // Determine disappear settings based on chat's disappearing_setting
+    let disappearAfterSeconds = null;
+    let maxViews = null;
+
+    switch (disappearingSetting) {
+      case 'after_viewing':
+        disappearAfterSeconds = 10; // Default view time
+        maxViews = 1; // Disappear after 1 view
+        break;
+      case '24_hours':
+        disappearAfterSeconds = 86400; // 24 hours in seconds
+        maxViews = null; // No view limit
+        break;
+      case 'none':
+      default:
+        disappearAfterSeconds = null;
+        maxViews = null;
+        break;
+    }
 
     const { error } = await supabase
       .from('messages')
@@ -174,12 +214,59 @@ export const useChat = (chatId) => {
     }
   };
 
+  // Function to update disappearing setting
+  const updateDisappearingSetting = async (newSetting) => {
+    try {
+      const { error } = await supabase
+        .from('chats')
+        .update({ disappearing_setting: newSetting })
+        .eq('id', chatId);
+
+      if (error) {
+        throw error;
+      }
+
+      setDisappearingSetting(newSetting);
+      return true;
+    } catch (error) {
+      console.error('Error updating disappearing setting:', error);
+      throw error;
+    }
+  };
+
+  // Function to mark message as disappeared after viewing
+  const markMessageAsDisappeared = async (messageId) => {
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .update({ is_disappeared: true })
+        .eq('id', messageId);
+
+      if (error) {
+        throw error;
+      }
+
+      // Update local state to remove the disappeared message from view
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageId ? { ...msg, is_disappeared: true } : msg
+      ));
+
+      return true;
+    } catch (error) {
+      console.error('Error marking message as disappeared:', error);
+      throw error;
+    }
+  };
+
   return {
     messages,
     loading,
     sendMessage,
     clearChatHistory,
     deleteMessage,
+    disappearingSetting,
+    updateDisappearingSetting,
+    markMessageAsDisappeared,
   };
 };
 
