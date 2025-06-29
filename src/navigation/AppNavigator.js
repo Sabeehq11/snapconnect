@@ -16,6 +16,7 @@ import EmailConfirmationScreen from '../screens/EmailConfirmationScreen';
 import CameraScreen from '../screens/CameraScreen';
 import ChatListScreen from '../screens/ChatListScreen';
 import ChatScreen from '../screens/ChatScreen';
+import AIChatScreen from '../screens/AIChatScreen';
 import StoriesScreen from '../screens/StoriesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
@@ -130,6 +131,7 @@ const ChatStack = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ChatList" component={ChatListScreen} />
       <Stack.Screen name="ChatRoom" component={ChatScreen} />
+      <Stack.Screen name="AIChat" component={AIChatScreen} />
     </Stack.Navigator>
   );
 };
@@ -159,8 +161,8 @@ const MainTabNavigator = () => {
         const nestedState = route?.state?.routes[route.state.index]?.state;
         const nestedRouteName = nestedState?.routes[nestedState.index]?.name;
         
-        // Hide tab bar in ChatRoom
-        const shouldHideTabBar = nestedRouteName === 'ChatRoom';
+        // Hide tab bar in ChatRoom and AIChat
+        const shouldHideTabBar = nestedRouteName === 'ChatRoom' || nestedRouteName === 'AIChat';
         
         return {
           headerShown: false,

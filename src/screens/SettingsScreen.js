@@ -53,6 +53,8 @@ const SettingsScreen = ({ navigation }) => {
     Alert.alert('Theme Changed', `Switched to ${themes[themeKey].name} theme!`);
   };
 
+
+
   const settingsItems = [
     {
       icon: 'person-outline',
@@ -407,6 +409,7 @@ const SettingsScreen = ({ navigation }) => {
       fontWeight: '600',
       color: colors.white,
     },
+
   });
 
   return (
@@ -479,6 +482,8 @@ const SettingsScreen = ({ navigation }) => {
             </TouchableOpacity>
           ))}
         </View>
+
+
 
         {/* Danger Zone */}
         <View style={styles.dangerSection}>

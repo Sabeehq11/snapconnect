@@ -68,13 +68,25 @@ export class RAGService {
         .eq('id', userId)
         .single();
 
-      // Get recent messages for context
-      const { data: recentMessages } = await supabase
-        .from('messages')
-        .select('content, message_type, created_at')
-        .eq('sender_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(20);
+      // Get user's chat IDs first
+      const { data: userChats } = await supabase
+        .from('chats')
+        .select('id')
+        .contains('participants', [userId]);
+
+      const chatIds = userChats?.map(chat => chat.id) || [];
+
+      // Get recent messages for context (both sent and received from all user's chats)
+      let recentMessages = [];
+      if (chatIds.length > 0) {
+        const { data: messages } = await supabase
+          .from('messages')
+          .select('content, message_type, created_at, sender_id, chat_id, sender:users!sender_id(display_name)')
+          .in('chat_id', chatIds)
+          .order('created_at', { ascending: false })
+          .limit(30);
+        recentMessages = messages || [];
+      }
 
       // Get friend list for social context
       const { data: friends } = await supabase
@@ -99,6 +111,8 @@ export class RAGService {
           content: msg.content,
           type: msg.message_type,
           timestamp: msg.created_at,
+          isFromUser: msg.sender_id === userId,
+          senderName: msg.sender?.display_name || 'Unknown',
         })) || [],
         friends: friends?.map(friend => ({
           name: friend.display_name,
@@ -495,6 +509,86 @@ Format as: "Trend: [Description] - Caption idea: [example]"`;
         "Late Night Study: Share study marathon moments - '3am and still going strong 💪🌙'",
         "Self-Care Sunday: Promote student wellness - 'Reminder: grades don't define you 💚✨'"
       ];
+    }
+  }
+
+  /**
+   * Generate AI chat responses for the AI assistant
+   */
+  static async generateAIChatResponse(userId, userMessage, conversationHistory = []) {
+    try {
+      console.log('🤖 RAG: Generating AI chat response for user', userId);
+      
+      const userContext = await this.getUserContext(userId);
+      if (!userContext) throw new Error('Could not retrieve user context');
+
+      // Format conversation history for better context
+      const recentConversation = conversationHistory
+        .slice(-8) // Get last 8 messages for better context
+        .reverse() // Show in chronological order (oldest first)
+        .map(m => `${m.isAI ? 'AI Assistant' : userContext.user.displayName || 'Student'}: ${m.content}`)
+        .join('\n');
+
+      const prompt = `You are a helpful, friendly AI assistant for college students. You're like a supportive friend who's knowledgeable and caring.
+
+Student Context:
+- Name: ${userContext.user.displayName || 'Student'}
+- Has ${userContext.friendCount} friends on campus
+- Recent messages from all chats: ${userContext.recentMessages.slice(0, 5).map(m => 
+  `${m.isFromUser ? 'You' : m.senderName}: "${m.content}"`
+).join(' | ')}
+
+CONVERSATION HISTORY:
+${recentConversation}
+
+IMPORTANT: You have access to both this AI chat conversation history AND the student's recent messages from all their chats with friends. 
+
+If the student is asking you to help respond to a recent message from a friend, or if they mention something that happened in their other chats, use that context from their "Recent messages from all chats" to give relevant advice or help craft responses.
+
+Read the conversation history above carefully. The student's most recent message is at the end. Respond naturally to what they just said, taking into account:
+1. The full AI conversation context
+2. Their recent messages with friends (if relevant)
+3. Any follow-up questions or topic changes
+
+Your response should:
+- Directly address their most recent message
+- Reference previous parts of the conversation when relevant
+- Be helpful, friendly, and supportive (like a good friend)
+- Stay concise but thorough (1-4 sentences usually)
+- Be appropriate for college students
+- Use natural, conversational language
+- Include emojis occasionally but not excessively
+
+Topics you can help with:
+- Academic questions, study tips, exam prep
+- Campus life advice and social situations  
+- Emotional support and encouragement
+- Planning and organization
+- Casual conversation and interests
+- Problem-solving and decision making
+- Help responding to friends' messages
+- Advice on social interactions and relationships
+
+Examples of using chat context:
+- If friend recently said "hey what's going on?" → Suggest responses like "Not much, just studying! How about you?"
+- If friend shared exciting news → Help celebrate or ask follow-up questions
+- If friend seems stressed → Suggest supportive responses
+- If making plans → Help coordinate or suggest ideas
+
+Avoid:
+- Medical or legal advice
+- Inappropriate content
+- Being overly formal or robotic
+- Making up facts or information
+
+Respond as if you're texting with a good friend who knows the conversation context.`;
+
+      const response = await this.callOpenAI(prompt, 0.8, 350);
+      console.log('✅ RAG: Generated AI chat response:', response);
+      return response.trim();
+    } catch (error) {
+      console.error('❌ RAG: Error generating AI chat response:', error);
+      throw error;
     }
   }
 }

@@ -182,6 +182,49 @@ const ChatListScreen = ({ navigation }) => {
     );
   };
 
+  const openAIChat = () => {
+    navigation.navigate('AIChat');
+  };
+
+  const renderAIChatBot = () => (
+    <TouchableOpacity 
+      style={[styles.chatItem, styles.aiChatItem]}
+      onPress={openAIChat}
+      activeOpacity={0.7}
+    >
+      <View style={styles.chatItemContent}>
+        <View style={styles.avatarContainer}>
+          <LinearGradient
+            colors={['#6366F1', '#8B5CF6']}
+            style={styles.avatar}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Ionicons name="sparkles" size={20} color={colors.white} />
+          </LinearGradient>
+          <View style={[styles.onlineIndicator, styles.aiOnlineIndicator]} />
+        </View>
+        
+        <View style={styles.chatContent}>
+          <View style={styles.chatHeader}>
+            <View style={styles.aiChatNameContainer}>
+              <Text style={styles.chatName}>AI Assistant</Text>
+              <View style={styles.aiBadge}>
+                <Text style={styles.aiBadgeText}>AI</Text>
+              </View>
+            </View>
+            <View style={styles.rightSection}>
+              <Ionicons name="pin" size={14} color={colors.primary} />
+            </View>
+          </View>
+          <Text style={styles.lastMessage} numberOfLines={1}>
+            Your friendly AI companion - ask me anything!
+          </Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
   const renderFriendItem = ({ item }) => (
     <TouchableOpacity 
       style={styles.chatItem}
@@ -376,22 +419,25 @@ const ChatListScreen = ({ navigation }) => {
 
         {/* Content */}
         {activeTab === 'chats' ? (
-          filteredChats.length === 0 ? (
-            <EmptyState
-              type="noChats"
-              onActionPress={() => setShowCreateModal(true)}
-              style={styles.emptyStateContainer}
-            />
-          ) : (
-            <FlatList
-              data={filteredChats}
-              renderItem={renderChatItem}
-              keyExtractor={(item) => item.id}
-              style={styles.chatList}
-              contentContainerStyle={styles.chatListContent}
-              showsVerticalScrollIndicator={false}
-            />
-          )
+          <FlatList
+            data={[{ id: 'ai-assistant', isAIBot: true }, ...filteredChats]}
+            renderItem={({ item }) => item.isAIBot ? renderAIChatBot() : renderChatItem({ item })}
+            keyExtractor={(item) => item.id}
+            style={styles.chatList}
+            contentContainerStyle={styles.chatListContent}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              filteredChats.length === 0 ? (
+                <View style={styles.emptyChatsContainer}>
+                  <EmptyState
+                    type="noChats"
+                    onActionPress={() => setShowCreateModal(true)}
+                    style={styles.emptyStateContainer}
+                  />
+                </View>
+              ) : null
+            }
+          />
         ) : (
           filteredFriends.length === 0 ? (
             <EmptyState
@@ -689,6 +735,35 @@ const styles = StyleSheet.create({
   emptyStateContainer: {
     flex: 1,
     paddingTop: theme.spacing.xl,
+  },
+  emptyChatsContainer: {
+    flex: 1,
+    paddingTop: theme.spacing.xl,
+  },
+  // AI Chat Bot specific styles
+  aiChatItem: {
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    backgroundColor: 'rgba(99, 102, 241, 0.05)',
+  },
+  aiOnlineIndicator: {
+    backgroundColor: '#10B981', // Green to show AI is always available
+  },
+  aiChatNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  aiBadge: {
+    backgroundColor: 'rgba(99, 102, 241, 0.9)',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  aiBadgeText: {
+    fontSize: 10,
+    fontWeight: theme.typography.fontWeights.bold,
+    color: colors.white,
   },
 });
 
