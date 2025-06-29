@@ -291,19 +291,6 @@ const ARFilters = ({ isVisible, onClose, onFilterSelect, currentFilter }) => {
               </TouchableOpacity>
             </View>
 
-            {/* Enhancement Notice */}
-            <View style={styles.enhancementNotice}>
-              <View style={styles.noticeIcon}>
-                <Ionicons name="information-circle" size={20} color={colors.warning} />
-              </View>
-              <View style={styles.noticeContent}>
-                <Text style={styles.noticeTitle}>Preview-Only Emoji Overlays</Text>
-                <Text style={styles.noticeText}>
-                  Large emoji overlays appear on camera preview only. To capture them in your photo, use your device's screenshot feature (Volume + Power buttons) while the overlay is visible!
-                </Text>
-              </View>
-            </View>
-
             {/* Filters Grid */}
             <ScrollView 
               style={styles.filtersContainer}
@@ -423,19 +410,6 @@ export const FilterOverlay = ({ filter, style }) => {
         </LinearGradient>
       </View>
 
-      {/* Filter Instructions - Bottom Center */}
-      <View style={styles.filterInstructions}>
-        <LinearGradient
-          colors={['rgba(0, 0, 0, 0.8)', 'rgba(0, 0, 0, 0.6)']}
-          style={styles.filterInstructionsGradient}
-        >
-          <Ionicons name="information-circle" size={16} color={colors.warning} />
-          <Text style={styles.filterInstructionsText}>
-            Preview Only: Use screenshot to capture with {filter.name} overlay
-          </Text>
-        </LinearGradient>
-      </View>
-
       {/* Visual Frame Effect - Optional border to show filter is active */}
       <View style={[styles.filterFrame, { borderColor: `${filter.color}60` }]} />
     </View>
@@ -485,33 +459,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 16,
-  },
-  enhancementNotice: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-  },
-  noticeIcon: {
-    marginRight: 12,
-    marginTop: 2,
-  },
-  noticeContent: {
-    flex: 1,
-  },
-  noticeTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.warning,
-    marginBottom: 4,
-  },
-  noticeText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 16,
   },
   filtersContainer: {
     flex: 1,
@@ -618,33 +565,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.white,
     fontWeight: '600',
-  },
-  filterInstructions: {
-    position: 'absolute',
-    bottom: 160, // Above the capture button area
-    left: 20,
-    right: 20,
-    alignItems: 'center',
-    borderRadius: 16,
-    overflow: 'hidden',
-    elevation: 3,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-  },
-  filterInstructionsGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  filterInstructionsText: {
-    fontSize: 13,
-    color: colors.white,
-    fontWeight: '500',
-    textAlign: 'center',
   },
   filterFrame: {
     position: 'absolute',

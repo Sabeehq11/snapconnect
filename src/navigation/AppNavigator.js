@@ -48,7 +48,7 @@ const MainTabs = () => {
           bottom: 0,
           left: 0,
           right: 0,
-          height: Platform.OS === 'ios' ? 90 : 70,
+          height: Platform.OS === 'ios' ? 75 : 60,
           backgroundColor: colors.surface,
           borderTopWidth: 0,
           elevation: 20,
