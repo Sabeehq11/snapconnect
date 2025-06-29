@@ -13,319 +13,114 @@ import { colors, theme } from '../utils/colors';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
 import EmailConfirmationScreen from '../screens/EmailConfirmationScreen';
+import LoadingScreen from '../screens/LoadingScreen';
+import StoriesScreen from '../screens/StoriesScreen';
+import CategoryStoriesScreen from '../screens/CategoryStoriesScreen';
 import CameraScreen from '../screens/CameraScreen';
 import ChatListScreen from '../screens/ChatListScreen';
 import ChatScreen from '../screens/ChatScreen';
-import AIChatScreen from '../screens/AIChatScreen';
-import StoriesScreen from '../screens/StoriesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import FriendRequestsScreen from '../screens/FriendRequestsScreen';
-import LoadingScreen from '../screens/LoadingScreen';
 import SendToFriendsScreen from '../screens/SendToFriendsScreen';
-import MemoriesScreen from '../screens/MemoriesScreen';
-import DiscoverFriendsScreen from '../screens/DiscoverFriendsScreen';
 import StoryPublishScreen from '../screens/StoryPublishScreen';
-import CategoryStoriesScreen from '../screens/CategoryStoriesScreen';
+import MemoriesScreen from '../screens/MemoriesScreen';
 import TutorialScreen from '../screens/TutorialScreen';
+import AIChatScreen from '../screens/AIChatScreen';
+import DiscoverFriendsScreen from '../screens/DiscoverFriendsScreen';
+
+// Import components
 import TutorialFloatingButton from '../components/TutorialFloatingButton';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Custom Tab Bar Icon with modern styling
-const TabIcon = ({ name, focused, color, size, hasNotifications, notificationCount }) => {
-  if (focused) {
-    return (
-      <View style={{
-        width: 56,
-        height: 32,
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-      }}>
-        <LinearGradient
-          colors={colors.gradients.primary}
-          style={{
-            width: '100%',
-            height: '100%',
-            borderRadius: 16,
-            justifyContent: 'center',
-            alignItems: 'center',
-            ...theme.shadows.sm,
-          }}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Ionicons name={name} size={size - 2} color={colors.white} />
-          {hasNotifications && (
-            <View style={{
-              position: 'absolute',
-              top: -4,
-              right: -4,
-              backgroundColor: colors.error,
-              borderRadius: 10,
-              minWidth: 20,
-              height: 20,
-              justifyContent: 'center',
-              alignItems: 'center',
-              paddingHorizontal: 6,
-              borderWidth: 2,
-              borderColor: colors.white,
-            }}>
-              <Text style={{
-                color: colors.white,
-                fontSize: 11,
-                fontWeight: '600',
-              }}>
-                {notificationCount > 99 ? '99+' : notificationCount}
-              </Text>
-            </View>
-          )}
-        </LinearGradient>
-      </View>
-    );
-  }
-  
-  return (
-    <View style={{ position: 'relative' }}>
-      <Ionicons name={name} size={size} color={color} />
-      {hasNotifications && (
-        <View style={{
-          position: 'absolute',
-          top: -6,
-          right: -6,
-          backgroundColor: colors.error,
-          borderRadius: 8,
-          minWidth: 16,
-          height: 16,
-          justifyContent: 'center',
-          alignItems: 'center',
-          paddingHorizontal: 4,
-        }}>
-          <Text style={{
-            color: colors.white,
-            fontSize: 10,
-            fontWeight: '600',
-          }}>
-            {notificationCount > 9 ? '9+' : notificationCount}
-          </Text>
-        </View>
-      )}
-    </View>
-  );
-};
-
-// Auth Stack for login/signup
-const AuthStack = () => {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="Signup" component={SignupScreen} />
-      <Stack.Screen name="EmailConfirmation" component={EmailConfirmationScreen} />
-    </Stack.Navigator>
-  );
-};
-
-// Chat Stack Navigator
-const ChatStack = () => {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="ChatList" component={ChatListScreen} />
-      <Stack.Screen name="ChatRoom" component={ChatScreen} />
-      <Stack.Screen name="AIChat" component={AIChatScreen} />
-    </Stack.Navigator>
-  );
-};
-
-// Profile Stack for profile-related screens
-const ProfileStack = () => {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="ProfileMain" component={ProfileScreen} />
-      <Stack.Screen name="Settings" component={SettingsScreen} />
-      <Stack.Screen name="FriendRequests" component={FriendRequestsScreen} />
-      <Stack.Screen name="Memories" component={MemoriesScreen} />
-      <Stack.Screen name="DiscoverFriends" component={DiscoverFriendsScreen} />
-    </Stack.Navigator>
-  );
-};
-
-// Main Tab Navigator for authenticated users
-const MainTabNavigator = () => {
-  const { totalUnreadCount = 0 } = useChats() || {};
+// Tab Navigator with enhanced styling
+const MainTabs = () => {
+  const { unreadCount } = useChats();
 
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => {
-        // Check if we're in a chat room to hide the tab bar
-        const routeName = route?.state?.routes[route.state.index]?.name;
-        const nestedState = route?.state?.routes[route.state.index]?.state;
-        const nestedRouteName = nestedState?.routes[nestedState.index]?.name;
-        
-        // Hide tab bar in ChatRoom and AIChat
-        const shouldHideTabBar = nestedRouteName === 'ChatRoom' || nestedRouteName === 'AIChat';
-        
-        return {
-          headerShown: false,
-          tabBarStyle: shouldHideTabBar ? { 
-            display: 'none' 
-          } : {
-            position: 'absolute',
-            bottom: 0,
-            left: 8,
-            right: 8,
-            backgroundColor: 'rgba(26, 26, 31, 0.95)',
-            borderRadius: 16,
-            paddingTop: 8,
-            paddingBottom: Platform.OS === 'ios' ? 20 : 8,
-            paddingHorizontal: 8,
-            height: Platform.OS === 'ios' ? 70 : 56,
-            borderTopWidth: 0,
-            elevation: 20,
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: -4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 12,
-            marginBottom: 8,
-            borderWidth: 1,
-            borderColor: 'rgba(255, 255, 255, 0.1)',
-          },
-          tabBarActiveTintColor: colors.white,
-          tabBarInactiveTintColor: 'rgba(255, 255, 255, 0.6)',
-          tabBarLabelStyle: {
-            fontSize: 11,
-            fontWeight: '600',
-            marginTop: 4,
-          },
-          tabBarIconStyle: {
-            marginTop: 4,
-          },
-        };
-      }}
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarStyle: {
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: Platform.OS === 'ios' ? 90 : 70,
+          backgroundColor: colors.surface,
+          borderTopWidth: 0,
+          elevation: 20,
+          shadowColor: colors.text,
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 10,
+        },
+        tabBarShowLabel: false,
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
+
+          if (route.name === 'Stories') {
+            iconName = focused ? 'library' : 'library-outline';
+          } else if (route.name === 'Camera') {
+            iconName = focused ? 'camera' : 'camera-outline';
+          } else if (route.name === 'Chats') {
+            iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+          } else if (route.name === 'Profile') {
+            iconName = focused ? 'person' : 'person-outline';
+          }
+
+          return (
+            <View style={{ position: 'relative' }}>
+              <Ionicons 
+                name={iconName} 
+                size={focused ? 28 : 24} 
+                color={focused ? colors.primary : colors.textSecondary} 
+              />
+              {route.name === 'Chats' && unreadCount > 0 && (
+                <View style={{
+                  position: 'absolute',
+                  top: -5,
+                  right: -10,
+                  backgroundColor: colors.danger,
+                  borderRadius: 10,
+                  minWidth: 20,
+                  height: 20,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  borderWidth: 2,
+                  borderColor: colors.surface,
+                }}>
+                  <Text style={{
+                    color: colors.white,
+                    fontSize: 12,
+                    fontWeight: 'bold',
+                  }}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </View>
+          );
+        },
+      })}
     >
-      <Tab.Screen 
-        name="Chat" 
-        component={ChatStack}
-        options={{
-          tabBarLabel: 'Chats',
-          tabBarIcon: ({ focused, color, size }) => (
-            <TabIcon 
-              name="chatbubbles"
-              focused={focused} 
-              color={color} 
-              size={size}
-              hasNotifications={totalUnreadCount > 0}
-              notificationCount={totalUnreadCount}
-            />
-          ),
-        }}
-      />
-      <Tab.Screen 
-        name="Camera" 
-        component={CameraScreen}
-        options={{
-          tabBarLabel: 'Camera',
-          tabBarIcon: ({ focused, color, size }) => (
-            <TabIcon 
-              name="camera"
-              focused={focused} 
-              color={color} 
-              size={size} 
-            />
-          ),
-        }}
-      />
-      <Tab.Screen 
-        name="Stories" 
-        component={StoriesScreen}
-        options={{
-          tabBarLabel: 'Stories',
-          tabBarIcon: ({ focused, color, size }) => (
-            <TabIcon
-              name="play-circle"
-              focused={focused} 
-              color={color} 
-              size={size} 
-            />
-          ),
-        }}
-      />
-      <Tab.Screen 
-        name="Profile" 
-        component={ProfileStack}
-        options={{
-          tabBarLabel: 'Profile',
-          tabBarIcon: ({ focused, color, size }) => (
-            <TabIcon
-              name="person"
-              focused={focused} 
-              color={color} 
-              size={size} 
-            />
-          ),
-        }}
-      />
+      <Tab.Screen name="Chats" component={ChatListScreen} />
+      <Tab.Screen name="Camera" component={CameraScreen} />
+      <Tab.Screen name="Stories" component={StoriesScreen} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
 };
 
-// Main Stack Navigator that includes both tabs and modal screens
-const MainStackNavigator = () => {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-      <Stack.Screen 
-        name="SendToFriends" 
-        component={SendToFriendsScreen}
-        options={{
-          presentation: 'modal',
-          gestureEnabled: true,
-        }}
-      />
-      <Stack.Screen 
-        name="StoryPublish" 
-        component={StoryPublishScreen}
-        options={{
-          presentation: 'modal',
-          gestureEnabled: true,
-        }}
-      />
-      <Stack.Screen 
-        name="CategoryStories" 
-        component={CategoryStoriesScreen}
-        options={{
-          presentation: 'card',
-          gestureEnabled: true,
-        }}
-      />
-    </Stack.Navigator>
-  );
-};
-
+// Main Stack Navigator that includes both tabs and individual screens
 const AppNavigator = () => {
   const { user, loading } = useAuth();
   const [showTutorial, setShowTutorial] = useState(false);
-  const [tutorialChecked, setTutorialChecked] = useState(false);
 
-  // Show tutorial every time user logs in
-  useEffect(() => {
-    if (user && !tutorialChecked) {
-      // Show tutorial on every login
-      setShowTutorial(true);
-      setTutorialChecked(true);
-    } else if (!user) {
-      // Reset tutorial state when user logs out
-      setShowTutorial(false);
-      setTutorialChecked(false);
-    }
-  }, [user, tutorialChecked]);
-
-  const handleTutorialComplete = () => {
-    setShowTutorial(false);
-  };
-
-  const handleShowTutorialFromButton = () => {
+  // Show tutorial modal
+  const handleTutorialPress = () => {
     setShowTutorial(true);
   };
 
@@ -335,17 +130,46 @@ const AppNavigator = () => {
 
   return (
     <NavigationContainer>
-      {user ? (
-        <>
-          <MainStackNavigator />
-          <TutorialFloatingButton onPress={handleShowTutorialFromButton} />
-          <TutorialScreen 
-            visible={showTutorial} 
-            onComplete={handleTutorialComplete}
-          />
-        </>
-      ) : (
-        <AuthStack />
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {user ? (
+          <>
+            <Stack.Screen name="MainTabs" component={MainTabs} />
+            <Stack.Screen name="ChatRoom" component={ChatScreen} />
+            <Stack.Screen name="CategoryStories" component={CategoryStoriesScreen} />
+            <Stack.Screen name="SendToFriends" component={SendToFriendsScreen} />
+            <Stack.Screen name="StoryPublish" component={StoryPublishScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="FriendRequests" component={FriendRequestsScreen} />
+            <Stack.Screen name="Memories" component={MemoriesScreen} />
+            <Stack.Screen name="AIChat" component={AIChatScreen} />
+            <Stack.Screen name="DiscoverFriends" component={DiscoverFriendsScreen} />
+            <Stack.Screen 
+              name="Tutorial" 
+              component={TutorialScreen}
+              options={{
+                presentation: 'modal',
+                headerShown: false,
+              }}
+            />
+          </>
+        ) : (
+          <>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Signup" component={SignupScreen} />
+            <Stack.Screen name="EmailConfirmation" component={EmailConfirmationScreen} />
+          </>
+        )}
+      </Stack.Navigator>
+      
+      {user && (
+        <TutorialFloatingButton onPress={handleTutorialPress} />
+      )}
+
+      {showTutorial && (
+        <TutorialScreen 
+          visible={showTutorial} 
+          onClose={() => setShowTutorial(false)} 
+        />
       )}
     </NavigationContainer>
   );

@@ -74,7 +74,7 @@ const TutorialFloatingButton = ({ onPress }) => {
           end={{ x: 1, y: 1 }}
         >
           <View style={styles.iconContainer}>
-            <Ionicons name="help-circle" size={24} color={colors.white} />
+            <Ionicons name="help-circle" size={22} color={colors.white} />
           </View>
         </LinearGradient>
         
@@ -88,15 +88,15 @@ const TutorialFloatingButton = ({ onPress }) => {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 60,
+    bottom: 100,
     right: 20,
     zIndex: 1000,
     elevation: 10,
   },
   button: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
     overflow: 'hidden',
     ...theme.shadows.lg,
   },
@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
     left: -2,
     right: -2,
     bottom: -2,
-    borderRadius: 27,
+    borderRadius: 24.5,
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: 'rgba(99, 102, 241, 0.3)',

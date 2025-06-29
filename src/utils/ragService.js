@@ -591,6 +591,206 @@ Respond as if you're texting with a good friend who knows the conversation conte
       throw error;
     }
   }
+
+  /**
+   * Generate context-aware text suggestions for chat responses
+   */
+  static async generateTextSuggestions(userId, context) {
+    try {
+      console.log('🤖 RAG: Generating context-aware text suggestions for user', userId);
+      console.log('🔍 RAG: Context received:', {
+        chatType: context.chatType,
+        recentMessagesCount: context.recentMessages?.length || 0,
+        friendName: context.friendName,
+        isGroupChat: context.isGroupChat
+      });
+      
+      const userContext = await this.getUserContext(userId);
+      if (!userContext) throw new Error('Could not retrieve user context');
+
+      // Find the most recent message from someone else (not the current user)
+      // Messages should be ordered chronologically, so we reverse to get most recent first
+      const lastMessage = context.recentMessages && context.recentMessages.length > 0 
+        ? [...context.recentMessages].reverse().find(msg => {
+            console.log('🔍 RAG: Checking message:', {
+              content: msg.content?.substring(0, 50) + '...',
+              sender_id: msg.sender_id,
+              userId: userId,
+              isFromFriend: msg.sender_id !== userId
+            });
+            return msg.sender_id !== userId;
+          })
+        : null;
+
+      console.log('🎯 RAG: Most recent friend message:', lastMessage ? {
+        content: lastMessage.content,
+        sender_id: lastMessage.sender_id,
+        timestamp: lastMessage.created_at
+      } : 'No friend message found');
+
+      let prompt = `You are helping ${userContext.user.displayName || 'a college student'} write natural replies to their friend${context.isGroupChat ? 's' : ''}. 
+
+Context:
+- Message type: ${context.chatType}
+- Time of day: ${context.timeOfDay}
+- Friend name: ${context.friendName}
+- Is group chat: ${context.isGroupChat}
+- Recent conversation: ${context.recentMessages?.slice(0, 3).map(m => `"${m.content}"`).join(' → ') || 'No recent messages'}
+
+${lastMessage ? `MOST RECENT MESSAGE TO RESPOND TO: "${lastMessage.content}"
+
+Generate 5 natural, contextual replies that directly respond to "${lastMessage.content}" while matching the ${context.chatType} style.` : `Generate 5 natural conversation starters that match the ${context.chatType} style.`}
+
+Make the suggestions:
+- Directly relevant to the last message${lastMessage ? ` ("${lastMessage.content}")` : ''}
+- Authentic college student responses
+- Appropriate for the ${context.chatType} tone
+- Varied in length and style
+- Natural conversation flow
+- Include relevant emojis sparingly (1-2 max per message)
+
+Message type guidelines:
+- general: Natural, contextual responses to what was said
+- friendly: Warm, caring responses that show genuine interest  
+- study: Academic-focused replies, study help, or exam support
+- hangout: Fun, social responses suggesting activities or showing enthusiasm
+- check_in: Supportive, empathetic responses showing care
+
+${lastMessage ? `Examples of good contextual responses:
+- If they asked "how was your day?" → "Pretty good! Just got done with class, how about you?"
+- If they said "stressed about the exam" → "I totally get that! Want to study together?"
+- If they shared good news → "That's awesome! So happy for you!"
+- If they suggested plans → "Count me in! That sounds fun"
+- If they asked "what's up?" → "Not much, just chilling! What are you up to?"` : ''}
+
+Return only the 5 messages, one per line, without numbering or quotes.`;
+
+      console.log('🤖 RAG: Calling OpenAI with prompt for', context.chatType, 'suggestions');
+      const response = await this.callOpenAI(prompt, 0.8, 350);
+      
+      const suggestions = response
+        .split('\n')
+        .filter(line => line.trim())
+        .map(line => line.trim().replace(/^["']|["']$/g, '').replace(/^\d+\.\s*/, ''))
+        .filter(line => line.length > 0)
+        .slice(0, 5);
+
+      console.log('✅ RAG: Generated suggestions:', suggestions);
+
+      return suggestions.length > 0 ? suggestions : this.getFallbackContextualSuggestions(context, userId);
+    } catch (error) {
+      console.error('❌ RAG: Error generating context-aware suggestions:', error);
+      return this.getFallbackContextualSuggestions(context, userId);
+    }
+  }
+
+  /**
+   * Get fallback suggestions when AI fails or no recent message is available
+   */
+  static getFallbackContextualSuggestions(context, userId) {
+    console.log('🔄 RAG: Using fallback suggestions for', context.chatType);
+    
+    // Find the most recent message from someone else (not the current user)
+    const lastMessage = context.recentMessages && context.recentMessages.length > 0 
+      ? [...context.recentMessages].reverse().find(msg => msg.sender_id !== userId)
+      : null;
+
+    if (lastMessage) {
+      const msgLower = lastMessage.content.toLowerCase();
+      
+      // Context-aware fallback responses based on message content
+      if (msgLower.includes('hey') || msgLower.includes('hi') || msgLower.includes('hello')) {
+        return [
+          "Hey! How's it going?",
+          "Hi there! What's up?",
+          "Hey! Good to hear from you 😊",
+          "Hi! How are you doing?",
+          "Hey! Hope you're having a good day!"
+        ];
+      } else if (msgLower.includes('what') && (msgLower.includes('up') || msgLower.includes('doing') || msgLower.includes('going'))) {
+        return [
+          "Not much, just chilling! What about you?",
+          "Just studying and hanging out. How about you?",
+          "Nothing too crazy, just the usual college stuff 😊",
+          "Just relaxing! What's up with you?",
+          "Same old, same old! What are you up to?"
+        ];
+      } else if (msgLower.includes('how') && (msgLower.includes('day') || msgLower.includes('going') || msgLower.includes('you'))) {
+        return [
+          "Pretty good! Just got back from class, how about you?",
+          "It's been a solid day! Thanks for asking 😊",
+          "Not bad at all! What about yours?",
+          "Going well so far! Hope yours is too",
+          "Can't complain! How's everything with you?"
+        ];
+      } else if (msgLower.includes('stress') || msgLower.includes('exam') || msgLower.includes('test') || msgLower.includes('homework')) {
+        return [
+          "I totally get that! Want to study together?",
+          "Exam stress is real 😩 You've got this though!",
+          "Been there! Let me know if you need help",
+          "Ugh same here. Coffee study session later?",
+          "You're gonna crush it! Believe in yourself 💪"
+        ];
+      } else if (msgLower.includes('want') || msgLower.includes('hang') || msgLower.includes('plans') || msgLower.includes('free')) {
+        return [
+          "Count me in! That sounds fun",
+          "I'm down! What did you have in mind?",
+          "Sounds great! When were you thinking?",
+          "Yes! I could use a break anyway",
+          "Perfect timing! Let's do it 🎉"
+        ];
+      } else if (msgLower.includes('good') || msgLower.includes('great') || msgLower.includes('awesome') || msgLower.includes('amazing')) {
+        return [
+          "That's awesome! So happy for you!",
+          "Yay! Love hearing good news 😊",
+          "That's amazing! Tell me more!",
+          "So excited for you! 🎉",
+          "That made my day! Great job!"
+        ];
+      }
+    }
+
+    // Default fallback by message type
+    const fallbacks = {
+      general: [
+        "Hey! How's your day going?",
+        "What's up? Hope you're doing well!",
+        "Hey there! How are things?",
+        "Hi! What are you up to today?",
+        "Hope you're having a great day!"
+      ],
+      friendly: [
+        "Thinking of you! Hope your day is awesome 😊",
+        "Hey bestie! Miss hanging out with you",
+        "You're amazing! Just wanted to remind you ✨",
+        "Hope you're crushing whatever you're working on!",
+        "Sending good vibes your way! 🌟"
+      ],
+      study: [
+        "How's the studying going? Need a study buddy?",
+        "Want to hit the library together later?",
+        "How did that exam go? Hope it went well!",
+        "Need help with any assignments?",
+        "Ready for some intense study sessions? 📚"
+      ],
+      hangout: [
+        "Want to grab coffee and catch up?",
+        "Movie night tonight? I'll bring the snacks!",
+        "Free this weekend? Let's do something fun!",
+        "Beach day? The weather looks perfect!",
+        "Game night at my place? Bring your A-game! 🎮"
+      ],
+      check_in: [
+        "How are you feeling today? I'm here if you need to talk",
+        "Checking in on you! How's everything going?",
+        "You've been on my mind. How are you doing?",
+        "Just wanted to see how you're holding up",
+        "Thinking of you! Let me know if you need anything ❤️"
+      ]
+    };
+    
+    return fallbacks[context.chatType] || fallbacks.general;
+  }
 }
 
 export default RAGService; 
