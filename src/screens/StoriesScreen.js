@@ -333,25 +333,39 @@ const StoriesScreen = ({ navigation, route }) => {
         />
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollViewContent}
+        showsVerticalScrollIndicator={false}
+      >
+
+        {/* Crisis Resources Section - Moved to top for prominence */}
+        <View style={styles.sectionWrapper}>
+          <CrisisResourcesSection />
+        </View>
 
         {/* Best Campus Places Section */}
-        <BestCampusPlacesSection onPlacePress={handlePlacePress} />
+        <View style={styles.sectionWrapper}>
+          <BestCampusPlacesSection onPlacePress={handlePlacePress} />
+        </View>
 
         {/* School Events Calendar */}
-        <SchoolEventsCalendar />
+        <View style={styles.sectionWrapper}>
+          <SchoolEventsCalendar />
+        </View>
 
         {/* Daily Mood Tracker */}
-        <MoodTracker />
+        <View style={styles.sectionWrapper}>
+          <MoodTracker />
+        </View>
 
         {/* Friends Academic Status */}
-        <FriendsAcademicStatus />
-
-        {/* Crisis Resources Section */}
-        <CrisisResourcesSection />
+        <View style={styles.sectionWrapper}>
+          <FriendsAcademicStatus />
+        </View>
 
         {/* Story Categories Section */}
-        <View style={styles.categoriesSection}>
+        <View style={[styles.categoriesSection, styles.sectionWrapper]}>
           <View style={styles.categoriesHeader}>
             <Text style={styles.categoriesTitle}>Story Categories</Text>
             <Text style={styles.categoriesSubtitle}>Explore stories by topic</Text>
@@ -400,13 +414,15 @@ const StoriesScreen = ({ navigation, route }) => {
         </View>
 
         {/* Campus Stories Section */}
-        <CampusStoriesSection 
-          navigation={navigation}
-          onStoryPress={(story) => {
-            console.log('Campus story pressed:', story);
-            // The CampusStoriesSection now handles viewing internally
-          }}
-        />
+        <View style={styles.sectionWrapper}>
+          <CampusStoriesSection 
+            navigation={navigation}
+            onStoryPress={(story) => {
+              console.log('Campus story pressed:', story);
+              // The CampusStoriesSection now handles viewing internally
+            }}
+          />
+        </View>
 
         {/* Empty State */}
         {stories.length <= 1 && !loading && (
@@ -418,6 +434,9 @@ const StoriesScreen = ({ navigation, route }) => {
             </Text>
           </View>
         )}
+
+        {/* Bottom padding for better scrolling */}
+        <View style={styles.bottomPadding} />
       </ScrollView>
 
       {/* Story Viewer Modal */}
@@ -630,6 +649,11 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    backgroundColor: '#1A1A1F',
+  },
+  scrollViewContent: {
+    paddingHorizontal: 0,
+    paddingBottom: 40,
   },
   storiesSection: {
     backgroundColor: '#1A1A1F',
@@ -913,7 +937,13 @@ const styles = StyleSheet.create({
   categoryArrow: {
     marginLeft: 8,
   },
-  
+  sectionWrapper: {
+    marginVertical: 12,
+    paddingHorizontal: 20,
+  },
+  bottomPadding: {
+    height: 120,
+  },
 });
 
 export default StoriesScreen; 

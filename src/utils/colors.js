@@ -60,11 +60,11 @@ export const colors = {
     modern: ['#6366F1', '#8B5CF6', '#60A5FA', '#34D399'],
   },
   
-  // Text colors for light theme
-  textPrimary: '#1F2937',        // Dark gray for main text
-  textSecondary: '#6B7280',      // Medium gray for secondary text
-  textTertiary: '#9CA3AF',       // Light gray for tertiary text
-  textMuted: '#D1D5DB',          // Very light gray for muted text
+  // Text colors for light theme (when needed)
+  textPrimaryLight: '#1F2937',        // Dark gray for main text
+  textSecondaryLight: '#6B7280',      // Medium gray for secondary text
+  textTertiaryLight: '#9CA3AF',       // Light gray for tertiary text
+  textMutedLight: '#D1D5DB',          // Very light gray for muted text
   textOnDark: '#FFFFFF',         // White text on dark backgrounds
   textBrand: '#6366F1',          // Brand color for links/highlights
   

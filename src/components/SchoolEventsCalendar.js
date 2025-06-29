@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,7 +11,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../utils/colors';
 
 const SchoolEventsCalendar = () => {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
   const [events, setEvents] = useState([]);
 
   useEffect(() => {
@@ -20,7 +18,7 @@ const SchoolEventsCalendar = () => {
   }, []);
 
   const loadSchoolEvents = () => {
-    // Mock school events data - realistic for college students
+    // Simple school events data
     const upcomingEvents = [
       {
         id: 'event-1',
@@ -131,64 +129,62 @@ const SchoolEventsCalendar = () => {
     const today = new Date();
     return events
       .filter(event => event.date >= today)
-      .sort((a, b) => a.date - b.date)
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(0, 5); // Show next 5 events
   };
 
-  const renderEventItem = (event) => (
-    <TouchableOpacity
-      key={event.id}
-      style={styles.eventCard}
-      activeOpacity={0.8}
-      onPress={() => handleEventPress(event)}
-    >
-      <LinearGradient
-        colors={[`${event.color}15`, `${event.color}08`]}
-        style={styles.eventCardGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+  const renderEventItem = (event, index) => {
+    return (
+      <TouchableOpacity
+        key={event.id}
+        style={styles.eventCard}
+        activeOpacity={0.8}
+        onPress={() => handleEventPress(event)}
       >
-        <View style={styles.eventHeader}>
-          <View style={[styles.eventIcon, { backgroundColor: event.color }]}>
-            <Text style={styles.eventIconText}>{event.icon}</Text>
+        <LinearGradient
+          colors={[`${event.color}15`, `${event.color}08`]}
+          style={styles.eventCardGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.eventHeader}>
+            <View style={[styles.eventIcon, { backgroundColor: event.color }]}>
+              <Text style={styles.eventIconText}>{event.icon}</Text>
+            </View>
+            <View style={styles.eventDate}>
+              <Text style={styles.eventDateText}>{formatDate(event.date)}</Text>
+              <Text style={styles.eventTimeText}>{event.time}</Text>
+            </View>
           </View>
-          <View style={styles.eventDate}>
-            <Text style={styles.eventDateText}>{formatDate(event.date)}</Text>
-            <Text style={styles.eventTimeText}>{event.time}</Text>
-          </View>
-        </View>
         
-        <View style={styles.eventContent}>
-          <Text style={styles.eventTitle} numberOfLines={1}>
-            {event.title}
-          </Text>
-          <Text style={styles.eventDescription} numberOfLines={2}>
-            {event.description}
-          </Text>
-          <View style={styles.eventFooter}>
-            <View style={styles.locationContainer}>
-              <Ionicons name="location-outline" size={12} color={colors.textSecondary} />
-              <Text style={styles.eventLocation} numberOfLines={1}>
-                {event.location}
-              </Text>
-            </View>
-            <View style={[styles.typeBadge, { backgroundColor: `${event.color}20` }]}>
-              <Text style={[styles.typeText, { color: event.color }]}>
-                {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
-              </Text>
+          <View style={styles.eventContent}>
+            <Text style={styles.eventTitle}>{event.title}</Text>
+            <Text style={styles.eventDescription}>{event.description}</Text>
+            
+            <View style={styles.eventFooter}>
+              <View style={styles.locationContainer}>
+                <Ionicons name="location-outline" size={12} color={colors.textSecondary} />
+                <Text style={styles.eventLocation}>{event.location}</Text>
+              </View>
+              
+              <View style={[styles.typeBadge, { backgroundColor: `${event.color}20` }]}>
+                <Text style={[styles.typeText, { color: event.color }]}>{event.type}</Text>
+              </View>
             </View>
           </View>
-        </View>
-      </LinearGradient>
-    </TouchableOpacity>
-  );
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  };
+
+  const upcomingEvents = getUpcomingEvents();
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.sectionTitle}>School Events</Text>
-          <Text style={styles.sectionSubtitle}>Stay updated with campus life</Text>
+          <Text style={styles.sectionSubtitle}>Upcoming activities and deadlines</Text>
         </View>
         <TouchableOpacity style={styles.calendarButton}>
           <LinearGradient
@@ -203,16 +199,16 @@ const SchoolEventsCalendar = () => {
       </View>
       
       <View style={styles.eventsContainer}>
-                {getUpcomingEvents().slice(0, 3).map(renderEventItem)}
+        {upcomingEvents.slice(0, 3).map((event, index) => renderEventItem(event, index))}
         
-        {getUpcomingEvents().length > 3 && (
+        {upcomingEvents.length > 3 && (
           <TouchableOpacity style={styles.viewMoreButton}>
-            <Text style={styles.viewMoreText}>View {getUpcomingEvents().length - 3} more events</Text>
+            <Text style={styles.viewMoreText}>View {upcomingEvents.length - 3} more events</Text>
             <Ionicons name="chevron-down" size={16} color={colors.primary} />
           </TouchableOpacity>
         )}
         
-        {getUpcomingEvents().length === 0 && (
+        {upcomingEvents.length === 0 && (
           <View style={styles.emptyState}>
             <Ionicons name="calendar-outline" size={48} color={colors.textSecondary} />
             <Text style={styles.emptyStateText}>No upcoming events</Text>
@@ -225,8 +221,7 @@ const SchoolEventsCalendar = () => {
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 20,
-    paddingHorizontal: 20,
+    // Removed marginVertical and paddingHorizontal since parent wrapper handles spacing
   },
   header: {
     flexDirection: 'row',

@@ -29,7 +29,7 @@ import * as FileSystem from 'expo-file-system';
 import { useFocusEffect } from '@react-navigation/native';
 import RAGStoryIdeas from '../components/RAGStoryIdeas';
 import TabbedImagePicker from '../components/TabbedImagePicker';
-import ARFilters, { FilterOverlay } from '../components/ARFilters';
+import ARFilters, { FilterOverlay, applyImageFilter, applyImageFilterWithFallback } from '../components/ARFilters';
 
 const { width, height } = Dimensions.get('window');
 
@@ -42,7 +42,9 @@ const CameraScreen = ({ navigation, route }) => {
   const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
   const [isRecording, setIsRecording] = useState(false);
   const [capturedPhoto, setCapturedPhoto] = useState(null);
+  const [originalCapturedPhoto, setOriginalCapturedPhoto] = useState(null); // Store original unfiltered photo
   const [selectedImage, setSelectedImage] = useState(null);
+  const [originalSelectedImage, setOriginalSelectedImage] = useState(null); // Store original unfiltered image
   const [showPhotoPreview, setShowPhotoPreview] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [showTabbedPicker, setShowTabbedPicker] = useState(false);
@@ -221,10 +223,28 @@ const CameraScreen = ({ navigation, route }) => {
         throw new Error('Photo file is empty (0 bytes)');
       }
 
-      // Save to library if permission granted
+      // Store the original unfiltered photo
+      setOriginalCapturedPhoto(photo.uri);
+      
+      // Apply selected filter if any
+      let processedPhotoUri = photo.uri;
+      if (currentARFilter && currentARFilter.id !== 'none') {
+        console.log('🎨 Applying filter to captured photo:', currentARFilter.name);
+        try {
+          processedPhotoUri = await applyImageFilterWithFallback(photo.uri, currentARFilter.id, photo.uri);
+          console.log('✅ Filter applied successfully to captured photo');
+        } catch (filterError) {
+          console.warn('⚠️ Filter application failed, using original photo:', filterError);
+          processedPhotoUri = photo.uri; // Fallback to original
+        }
+      }
+
+      // Save to library if permission granted (save the best version available)
       if (mediaPermission?.granted) {
         try {
-          await MediaLibrary.saveToLibraryAsync(photo.uri);
+          // Save the filtered version if available, otherwise save original
+          const imageToSave = processedPhotoUri || photo.uri;
+          await MediaLibrary.saveToLibraryAsync(imageToSave);
           console.log('✅ Photo saved to library');
         } catch (saveError) {
           console.warn('⚠️ Failed to save to library:', saveError);
@@ -232,8 +252,8 @@ const CameraScreen = ({ navigation, route }) => {
         }
       }
 
-      // Show photo preview
-      setCapturedPhoto(photo.uri);
+      // Show photo preview with processed image
+      setCapturedPhoto(processedPhotoUri);
       setShowPhotoPreview(true);
       
     } catch (error) {
@@ -270,9 +290,26 @@ const CameraScreen = ({ navigation, route }) => {
     setShowTabbedPicker(true);
   };
 
-  const handleImageSelect = (imageUri) => {
+  const handleImageSelect = async (imageUri) => {
     console.log('📷 Image selected from tabbed picker:', imageUri);
-    setSelectedImage(imageUri);
+    
+    // Store the original unfiltered image
+    setOriginalSelectedImage(imageUri);
+    
+    // Apply selected filter if any
+    let processedImageUri = imageUri;
+    if (currentARFilter && currentARFilter.id !== 'none') {
+      console.log('🎨 Applying filter to selected image:', currentARFilter.name);
+      try {
+        processedImageUri = await applyImageFilterWithFallback(imageUri, currentARFilter.id, imageUri);
+        console.log('✅ Filter applied to gallery image successfully');
+      } catch (filterError) {
+        console.warn('⚠️ Filter application failed, using original image:', filterError);
+        processedImageUri = imageUri; // Fallback to original
+      }
+    }
+    
+    setSelectedImage(processedImageUri);
     setShowImagePreview(true);
     setShowTabbedPicker(false);
   };
@@ -289,6 +326,9 @@ const CameraScreen = ({ navigation, route }) => {
     setShowTabbedPicker(false);
     setCapturedPhoto(null);
     setSelectedImage(null);
+    // Clear original images
+    setOriginalCapturedPhoto(null);
+    setOriginalSelectedImage(null);
     
     navigation.navigate('SendToFriends', { 
       photoUri, 
@@ -318,6 +358,9 @@ const CameraScreen = ({ navigation, route }) => {
     // Clear state
     setCapturedPhoto(null);
     setSelectedImage(null);
+    // Clear original images
+    setOriginalCapturedPhoto(null);
+    setOriginalSelectedImage(null);
     
     // Navigate to StoryPublishScreen with image data
     navigation.navigate('StoryPublish', {
@@ -337,6 +380,9 @@ const CameraScreen = ({ navigation, route }) => {
     setShowTabbedPicker(false);
     setCapturedPhoto(null);
     setSelectedImage(null);
+    // Clear original images to free memory
+    setOriginalCapturedPhoto(null);
+    setOriginalSelectedImage(null);
   };
 
 
@@ -399,9 +445,59 @@ const CameraScreen = ({ navigation, route }) => {
     setShowARFilters(true);
   };
 
-  const handleARFilterSelect = (filter) => {
+  const handleARFilterSelect = async (filter) => {
     console.log('✨ AR: Selected filter:', filter);
     setCurrentARFilter(filter);
+    
+    // If we have images in preview, re-apply the new filter to the original images
+    try {
+      // Re-apply filter to captured photo if available
+      if (originalCapturedPhoto && showPhotoPreview) {
+        console.log('🔄 Re-applying filter to captured photo...');
+        let newProcessedPhoto = originalCapturedPhoto;
+        
+        if (filter && filter.id !== 'none') {
+          try {
+            newProcessedPhoto = await applyImageFilterWithFallback(
+              originalCapturedPhoto, 
+              filter.id, 
+              originalCapturedPhoto
+            );
+            console.log('✅ Filter re-applied to captured photo successfully');
+          } catch (filterError) {
+            console.warn('⚠️ Filter re-application failed for captured photo:', filterError);
+            newProcessedPhoto = originalCapturedPhoto;
+          }
+        }
+        
+        setCapturedPhoto(newProcessedPhoto);
+      }
+      
+      // Re-apply filter to selected image if available
+      if (originalSelectedImage && showImagePreview) {
+        console.log('🔄 Re-applying filter to selected image...');
+        let newProcessedImage = originalSelectedImage;
+        
+        if (filter && filter.id !== 'none') {
+          try {
+            newProcessedImage = await applyImageFilterWithFallback(
+              originalSelectedImage, 
+              filter.id, 
+              originalSelectedImage
+            );
+            console.log('✅ Filter re-applied to selected image successfully');
+          } catch (filterError) {
+            console.warn('⚠️ Filter re-application failed for selected image:', filterError);
+            newProcessedImage = originalSelectedImage;
+          }
+        }
+        
+        setSelectedImage(newProcessedImage);
+      }
+    } catch (error) {
+      console.error('❌ Error during filter re-application:', error);
+      // Don't show alert here as it would interrupt the filter selection flow
+    }
   };
 
   return (

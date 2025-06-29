@@ -224,8 +224,7 @@ const FriendsAcademicStatus = () => {
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 20,
-    paddingHorizontal: 20,
+    // Removed marginVertical and paddingHorizontal since parent wrapper handles spacing
   },
   header: {
     flexDirection: 'row',

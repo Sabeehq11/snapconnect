@@ -15,6 +15,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import TutorialScreen from './TutorialScreen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SettingsScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
@@ -23,6 +25,7 @@ const SettingsScreen = ({ navigation }) => {
   
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const [editDisplayName, setEditDisplayName] = useState(user?.displayName || '');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [privateAccount, setPrivateAccount] = useState(false);
@@ -51,6 +54,14 @@ const SettingsScreen = ({ navigation }) => {
     changeTheme(themeKey);
     setShowThemeModal(false);
     Alert.alert('Theme Changed', `Switched to ${themes[themeKey].name} theme!`);
+  };
+
+  const handleShowTutorial = () => {
+    setShowTutorial(true);
+  };
+
+  const handleTutorialComplete = () => {
+    setShowTutorial(false);
   };
 
 
@@ -99,6 +110,13 @@ const SettingsScreen = ({ navigation }) => {
           thumbColor={privateAccount ? colors.white : '#f4f3f4'}
         />
       ),
+    },
+    {
+      icon: 'school-outline',
+      title: 'View Tutorial',
+      subtitle: 'Learn how to use all app features',
+      onPress: handleShowTutorial,
+      color: colors.success,
     },
     {
       icon: 'help-circle-outline',
@@ -595,6 +613,12 @@ const SettingsScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Tutorial Modal */}
+      <TutorialScreen 
+        visible={showTutorial} 
+        onComplete={handleTutorialComplete}
+      />
     </SafeAreaView>
   );
 };

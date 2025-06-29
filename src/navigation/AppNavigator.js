@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -27,6 +27,8 @@ import MemoriesScreen from '../screens/MemoriesScreen';
 import DiscoverFriendsScreen from '../screens/DiscoverFriendsScreen';
 import StoryPublishScreen from '../screens/StoryPublishScreen';
 import CategoryStoriesScreen from '../screens/CategoryStoriesScreen';
+import TutorialScreen from '../screens/TutorialScreen';
+import TutorialFloatingButton from '../components/TutorialFloatingButton';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -303,6 +305,29 @@ const MainStackNavigator = () => {
 
 const AppNavigator = () => {
   const { user, loading } = useAuth();
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialChecked, setTutorialChecked] = useState(false);
+
+  // Show tutorial every time user logs in
+  useEffect(() => {
+    if (user && !tutorialChecked) {
+      // Show tutorial on every login
+      setShowTutorial(true);
+      setTutorialChecked(true);
+    } else if (!user) {
+      // Reset tutorial state when user logs out
+      setShowTutorial(false);
+      setTutorialChecked(false);
+    }
+  }, [user, tutorialChecked]);
+
+  const handleTutorialComplete = () => {
+    setShowTutorial(false);
+  };
+
+  const handleShowTutorialFromButton = () => {
+    setShowTutorial(true);
+  };
 
   if (loading) {
     return <LoadingScreen />;
@@ -310,7 +335,18 @@ const AppNavigator = () => {
 
   return (
     <NavigationContainer>
-      {user ? <MainStackNavigator /> : <AuthStack />}
+      {user ? (
+        <>
+          <MainStackNavigator />
+          <TutorialFloatingButton onPress={handleShowTutorialFromButton} />
+          <TutorialScreen 
+            visible={showTutorial} 
+            onComplete={handleTutorialComplete}
+          />
+        </>
+      ) : (
+        <AuthStack />
+      )}
     </NavigationContainer>
   );
 };

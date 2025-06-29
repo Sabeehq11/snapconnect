@@ -193,7 +193,7 @@ const BestCampusPlacesSection = ({ onPlacePress }) => {
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 20,
+    // Removed marginVertical since parent wrapper handles spacing
   },
   header: {
     flexDirection: 'row',
