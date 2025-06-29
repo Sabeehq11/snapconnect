@@ -119,9 +119,19 @@ const AppNavigator = () => {
   const { user, loading } = useAuth();
   const [showTutorial, setShowTutorial] = useState(false);
 
-  // Show tutorial modal
+  // Show tutorial automatically when user logs in
+  useEffect(() => {
+    if (user && !loading) {
+      setShowTutorial(true);
+    }
+  }, [user, loading]);
+
   const handleTutorialPress = () => {
     setShowTutorial(true);
+  };
+
+  const handleTutorialComplete = () => {
+    setShowTutorial(false);
   };
 
   if (loading) {
@@ -168,7 +178,7 @@ const AppNavigator = () => {
       {showTutorial && (
         <TutorialScreen 
           visible={showTutorial} 
-          onClose={() => setShowTutorial(false)} 
+          onComplete={handleTutorialComplete} 
         />
       )}
     </NavigationContainer>
